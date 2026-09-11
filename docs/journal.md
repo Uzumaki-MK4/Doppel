@@ -139,3 +139,20 @@ One short entry per working day: what was built, what broke, what was decided.
 - D7 `scanners/base.py`: getting auto-registration right (a registry that discovers `Scanner` subclasses without the CLI importing each one) and settling the `Scanner.run(endpoint) -> list[Finding]` contract so Week-2 scanners and the (future) real scan path in `runner.py` compose cleanly.
 
 **Next** — Day 7 (Week 2): `scanners/base.py`.
+
+## Day 7 — 2026-09-12 — Scanner ABC + registry (Week 2 begins)
+
+**Built**
+- `apiguard/scanners/base.py`: `Scanner` ABC (`async run(endpoint) -> list[Finding]`), `ScanContext` (engine/base_url/settings/sessions injected at construction), `__init_subclass__` auto-registration (gated on a non-empty `name`), `discover_scanners()` (imports every package module so a dropped file registers), `registered_scanners()`, `build_scanners()`.
+- `tests/test_scanners_base.py`: 5 tests — auto-register, duplicate-name error, nameless-not-registered, build+run a dummy, discovery idempotent.
+
+**Verified — Day 7 done-condition met**
+- Live: a scanner file dropped into `apiguard/scanners/` was auto-discovered by `discover_scanners()` (registry `[]` -> `['dropped_demo']`) with no CLI/registry edit; temp file cleaned up.
+- `pytest -q` -> 39 passed.
+
+**Decided** — see BRAIN.md Section 9 (name-gated registration, ScanContext injection).
+
+**Most likely to break next**
+- D8 `scanners/injection.py`: sharing one loop for SQLi (error-signature + time-delay) and reflected XSS, mapping payloads onto real parameters (query/body), and reliably detecting VAmPI's known SQLi from response signatures. Also likely needs the real (non-dry) scan path in `runner.py` that fans endpoints across `build_scanners()` and collects findings — decide that scope at D8 start.
+
+**Next** — Day 8: `scanners/injection.py`.

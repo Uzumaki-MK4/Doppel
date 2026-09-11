@@ -261,7 +261,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - [x] **D6** `cli.py` + rich progress. *Done when: `apiguard scan --dry-run` parses, logs in both users, touches every endpoint.* — **DONE 2026-09-12, verified (touches all 14 VAmPI ops; 34 tests pass). WEEK 1 COMPLETE.**
 
 ### Week 2 — Baseline scanners (compressed on purpose, do not gold-plate)
-- [ ] **D7** `scanners/base.py` ABC + registry. *Done when: a dummy scanner is auto-discovered.*
+- [x] **D7** `scanners/base.py` ABC + registry. *Done when: a dummy scanner is auto-discovered.* — **DONE 2026-09-12, verified (file-drop discovery; 39 tests pass).**
 - [ ] **D8** `scanners/injection.py` (SQLi + XSS). *Done when: finds VAmPI's known SQLi.*
 - [ ] **D9** `scanners/ssrf.py` + `scanners/jwt_attacks.py`. *Done when: JWT module flags a real weakness.*
 - [ ] **D10** `scanners/misconfig.py` + `scanners/rate_limit.py`. *Done when: full baseline scan produces a findings list.*
@@ -300,12 +300,14 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 6 — complete and verified. **WEEK 1 COMPLETE.** (Next: Week 2, baseline scanners.)
-**Last session:** 2026-09-12 — Day 6 `settings.py` + `runner.py` + `scan --dry-run`.
-**Completed:** D1–D6 (all of Week 1). `settings.py` (pydantic-settings loader, zero-config defaults), `runner.py` (new orchestration module; `dry_run` parses + logs in both users + touches every endpoint as User A -> `ScanResult`), `cli.py scan --spec <url> --dry-run` (rich progress + summary). 34 tests pass. Live: dry-run touched all 14 VAmPI ops, 18 requests.
+**Current day:** Day 7 — complete and verified. (Week 2, day 1 of 6.)
+**Last session:** 2026-09-12 — Day 7 `scanners/base.py`.
+**Completed:** D1–D7. `scanners/base.py`: `Scanner` ABC (`async run(endpoint) -> list[Finding]`), `ScanContext` (engine/base_url/settings/sessions), `__init_subclass__` auto-registration, `discover_scanners()` (package import so file-drop works), `build_scanners()`. 39 tests pass. Verified file-drop discovery.
 **In progress:** nothing.
 **Blocked / broken:** nothing.
-**Next action:** Day 7 (Week 2) — `scanners/base.py`: abstract `Scanner` (`async def run(self, endpoint) -> list[Finding]`) + a registry so scanners auto-discover. Done when a dummy scanner is auto-discovered and picked up. Week 2 scanners are the control group — deliberately compressed, do not gold-plate. The runner will grow a real (non-dry) scan path that fans endpoints across registered scanners.
+**Next action:** Day 8 — `scanners/injection.py`: SQLi (error-signature + time-delay) and reflected XSS (marked input, check reflection) sharing one injection loop; static wordlists in `wordlists/`. Done when it finds VAmPI's known SQLi. This is the first real scanner and validates the registry end to end; likely also needs the real (non-dry) scan path in `runner.py` that fans endpoints across `build_scanners()` and collects findings.
+
+**Scanner contract (D7):** subclass `Scanner`, set `name` (and `owasp_id`), implement `async def run(self, endpoint) -> list[Finding]`. Construction takes a `ScanContext`. Access the engine via `self.engine` / `self.base_url`. Just adding a file under `apiguard/scanners/` registers it (no CLI edit).
 
 **VAmPI auth facts (for Week-4 BOLA):**
 - Register: `POST /users/v1/register` JSON `{username,password,email}`. Login: `POST /users/v1/login` JSON `{username,password}` -> `{auth_token: <JWT>, ...}`. Auth header: `Authorization: Bearer <JWT>` (raw token is rejected by the OpenAPI layer).
@@ -360,6 +362,8 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — New module `apiguard/runner.py` (added to Section 4) holds scan orchestration — keeps `cli.py` logic-free (invariant 1); the CLI passes a progress callback so `rich` stays out of the runner. Week 2+ grows a real scan path here.
 - 2026-09-12 — `settings.py` is a minimal pydantic-settings loader with zero-config defaults incl. two disposable VAmPI users (user-approved) — `scan --dry-run` works with no config file; `config.yaml` (gitignored) overrides. Wires the scope allowlist from config, resolving the earlier localhost-only limitation. (Env-over-YAML precedence deferred.)
 - 2026-09-12 — Dry-run touches endpoints authenticated as User A and still sends real baseline requests (not a no-network mode) — proves identity is wired into the pipeline; run only against a disposable target (VAmPI). Runner stays target-agnostic (no `/createdb` coupling); reset is the caller's concern.
+- 2026-09-12 — Scanner auto-registration gates on a non-empty `name`, not on abstractness (D7) — `ABCMeta` sets `__abstractmethods__` after `__init_subclass__` runs, so it can't be checked there; abstract intermediates simply leave `name` unset and stay unregistered.
+- 2026-09-12 — Scanners receive a `ScanContext` (engine, base_url, settings, sessions) at construction — keeps `run(endpoint)` to the exact Section-6 contract while giving scanners the engine now and the two user sessions the BOLA engine needs in Week 4. Small seam added deliberately to avoid reworking every scanner later.
 
 ---
 
