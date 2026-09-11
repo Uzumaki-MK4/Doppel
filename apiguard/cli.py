@@ -99,22 +99,24 @@ def scan(
         "config.yaml", "--config", help="Config YAML path (defaults are used if absent)."
     ),
 ) -> None:
-    """Scan an API. Currently only --dry-run is implemented (scanners: Week 2)."""
+    """Scan an API for vulnerabilities. Use --dry-run for a plumbing-only pass."""
     settings = load_settings(config)
-    if not dry_run:
-        console.print(
-            "[yellow]Only --dry-run is implemented so far. Re-run with --dry-run.[/yellow]"
-        )
-        raise typer.Exit(code=1)
     try:
-        result = _run_dry_run(spec, settings, confirm_authorized)
+        if dry_run:
+            result = _run_dry_run(spec, settings, confirm_authorized)
+        else:
+            result = _run_scan(spec, settings, confirm_authorized)
     except ScopeError as exc:
         console.print(f"[bold red]Scope refused:[/bold red] {exc}")
         raise typer.Exit(code=2) from None
     except Exception as exc:  # network / auth / spec errors, at the CLI boundary
         console.print(f"[bold red]Scan failed[/bold red] ({spec}): {exc}")
         raise typer.Exit(code=1) from None
-    _render_scan_summary(result)
+
+    if dry_run:
+        _render_scan_summary(result)
+    else:
+        _render_findings(result)
 
 
 def _run_dry_run(spec: str, settings, confirm_authorized: bool) -> ScanResult:
@@ -151,6 +153,69 @@ def _render_scan_summary(result: ScanResult) -> None:
     table.add_row("findings", str(len(result.findings)))
     console.print(table)
     console.print("[green]Dry-run complete. Week 1 plumbing works end to end.[/green]")
+
+
+_SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+_SEVERITY_STYLE = {
+    "critical": "bold red",
+    "high": "red",
+    "medium": "yellow",
+    "low": "cyan",
+    "info": "dim",
+}
+
+
+def _run_scan(spec: str, settings, confirm_authorized: bool) -> ScanResult:
+    with Progress(
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("{task.completed}/{task.total}"),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        state: dict[str, object] = {"task": None}
+
+        def on_progress(index: int, total: int, description: str) -> None:
+            if state["task"] is None:
+                state["task"] = progress.add_task("Scanning", total=total)
+            progress.update(state["task"], completed=index, description=f"Scanning {description}")
+
+        return asyncio.run(
+            runner.scan(
+                spec, settings, confirm_authorized=confirm_authorized, on_progress=on_progress
+            )
+        )
+
+
+def _render_findings(result: ScanResult) -> None:
+    table = Table(title=f"Findings: {result.target}")
+    table.add_column("Severity", no_wrap=True)
+    table.add_column("Scanner", style="cyan", no_wrap=True)
+    table.add_column("Title")
+    table.add_column("Endpoint", style="white")
+    table.add_column("Conf", justify="right")
+
+    ordered = sorted(
+        result.findings,
+        key=lambda f: (_SEVERITY_ORDER.get(f.severity.value, 9), f.scanner),
+    )
+    for finding in ordered:
+        sev = finding.severity.value
+        table.add_row(
+            f"[{_SEVERITY_STYLE.get(sev, 'white')}]{sev.upper()}[/]",
+            finding.scanner,
+            finding.title,
+            f"{finding.endpoint.method} {finding.endpoint.path}",
+            f"{finding.confidence:.2f}",
+        )
+
+    console.print(table)
+    counts = result.severity_counts()
+    breakdown = ", ".join(f"{k}={v}" for k, v in counts.items() if v) or "none"
+    console.print(
+        f"[bold]{len(result.findings)}[/bold] findings ({breakdown}) across "
+        f"{len(result.endpoints)} endpoints; {result.requests_sent} requests sent."
+    )
 
 
 def main() -> None:

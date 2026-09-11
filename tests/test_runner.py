@@ -6,7 +6,7 @@ import pytest
 import respx
 from httpx import Response
 
-from apiguard.runner import _base_url_of, dry_run
+from apiguard.runner import _base_url_of, dry_run, scan
 from apiguard.settings import Settings
 
 BASE = "http://localhost:5000"
@@ -75,3 +75,33 @@ def test_dry_run_blocks_out_of_scope():
 
     with pytest.raises(ScopeError):
         asyncio.run(run())
+
+
+PING_SPEC = {
+    "openapi": "3.0.0",
+    "info": {"title": "t", "version": "1.0.0"},
+    "paths": {"/ping": {"get": {"responses": {"200": {"description": "ok"}}}}},
+}
+
+
+@respx.mock
+def test_scan_fans_scanners_and_collects_findings():
+    respx.get(f"{BASE}/openapi.json").mock(return_value=Response(200, json=PING_SPEC))
+    respx.post(f"{BASE}/users/v1/register").mock(return_value=Response(200, json={}))
+    respx.post(f"{BASE}/users/v1/login").mock(return_value=Response(200, json={"auth_token": "t"}))
+    # /ping has no security headers and discloses a server version -> misconfig fires;
+    # no 429 across the burst -> rate_limit fires.
+    respx.get(f"{BASE}/ping").mock(return_value=Response(200, json={}, headers={"server": "Werkzeug/2.2.3"}))
+
+    settings = Settings(http={"rate_limit_per_s": 0})
+
+    async def run():
+        return await scan(f"{BASE}/openapi.json", settings)
+
+    result = asyncio.run(run())
+
+    scanners_that_fired = {f.scanner for f in result.findings}
+    assert "misconfig" in scanners_that_fired
+    assert "rate_limit" in scanners_that_fired
+    assert result.requests_sent > 0
+    assert result.payload_mode == "static"

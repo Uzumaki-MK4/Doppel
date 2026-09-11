@@ -20,6 +20,7 @@ from apiguard.core.identity import IdentityManager, UserCredentials
 from apiguard.core.models import ScanResult
 from apiguard.core.scope import ScopeGuard
 from apiguard.core.spec_parser import load_spec, parse_spec
+from apiguard.scanners.base import ScanContext, build_scanners
 from apiguard.settings import Settings
 
 # on_progress(current_index, total, description)
@@ -81,5 +82,63 @@ async def dry_run(
             payload_mode="static",
             endpoints=endpoints,
             findings=[],
+            requests_sent=engine.requests_sent,
+        )
+
+
+async def scan(
+    spec_source: str,
+    settings: Settings,
+    *,
+    base_url: str | None = None,
+    confirm_authorized: bool = False,
+    payload_mode: str = "static",
+    on_progress: ProgressCb | None = None,
+) -> ScanResult:
+    """Full baseline scan: fan every endpoint across all registered scanners.
+
+    Scanners run sequentially (they hold per-run guards, e.g. the JWT and
+    rate-limit scanners probe once); parallelising is a later optimisation.
+    """
+    base_url = base_url or _base_url_of(spec_source)
+    ScopeGuard(settings.scope.allowlist).check(base_url, confirm_authorized=confirm_authorized)
+
+    spec = await load_spec(
+        spec_source, allowlist=settings.scope.allowlist, confirm_authorized=confirm_authorized
+    )
+    endpoints = parse_spec(spec)
+
+    async with HttpEngine(
+        max_concurrency=settings.http.max_concurrency,
+        rate_limit_per_s=settings.http.rate_limit_per_s,
+        timeout_s=settings.http.timeout_s,
+        retries=settings.http.retries,
+    ) as engine:
+        identity = IdentityManager(engine, base_url)
+        users = {
+            name: UserCredentials(**cfg.model_dump()) for name, cfg in settings.users.items()
+        }
+        sessions = await identity.setup(users)
+        context = ScanContext(
+            engine=engine, base_url=base_url, settings=settings, sessions=sessions
+        )
+        scanners = build_scanners(context)  # discover + instantiate every registered scanner
+
+        findings = []
+        total = len(endpoints)
+        for index, endpoint in enumerate(endpoints, start=1):
+            if on_progress is not None:
+                on_progress(index, total, f"{endpoint.method} {endpoint.path}")
+            for scanner in scanners:
+                findings.extend(await scanner.run(endpoint))
+
+        return ScanResult(
+            target=base_url,
+            spec_url=spec_source,
+            model=settings.model,
+            seed=settings.seed,
+            payload_mode=payload_mode,
+            endpoints=endpoints,
+            findings=findings,
             requests_sent=engine.requests_sent,
         )
