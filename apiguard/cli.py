@@ -8,6 +8,7 @@ Currently exposes `parse`; the `scan` command arrives on Day 6.
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
 import typer
 from rich.console import Console
@@ -15,6 +16,7 @@ from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
 from rich.table import Table
 
 from apiguard import runner
+from apiguard.core.http_engine import Cassette
 from apiguard.core.models import Endpoint, ScanResult
 from apiguard.core.scope import ScopeError
 from apiguard.core.spec_parser import load_spec, parse_spec
@@ -88,7 +90,9 @@ def _render(endpoints: list[Endpoint], source: str) -> None:
 
 @app.command()
 def scan(
-    spec: str = typer.Option(..., "--spec", help="OpenAPI spec URL or file path."),
+    spec: str = typer.Option(
+        None, "--spec", help="OpenAPI spec URL or file path (optional with --replay)."
+    ),
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Run the full pipeline without vulnerability scanners."
     ),
@@ -98,14 +102,41 @@ def scan(
     config: str = typer.Option(
         "config.yaml", "--config", help="Config YAML path (defaults are used if absent)."
     ),
+    record: str = typer.Option(
+        None, "--record", help="Record all HTTP into this cassette directory."
+    ),
+    replay: str = typer.Option(
+        None, "--replay", help="Replay all HTTP from this cassette directory (offline)."
+    ),
+    out: str = typer.Option(None, "--out", help="Write the ScanResult JSON to this path."),
 ) -> None:
     """Scan an API for vulnerabilities. Use --dry-run for a plumbing-only pass."""
     settings = load_settings(config)
+
+    if record and replay:
+        console.print("[bold red]Use either --record or --replay, not both.[/bold red]")
+        raise typer.Exit(code=2)
+    if dry_run and (record or replay):
+        console.print("[bold red]Cassettes (--record/--replay) are not supported with --dry-run.[/bold red]")
+        raise typer.Exit(code=2)
+
+    if replay and not spec:  # a cassette records its own spec source
+        try:
+            spec = Cassette.read_meta(replay).get("spec_source")
+        except Exception as exc:
+            console.print(f"[bold red]Could not read cassette meta[/bold red] ({replay}): {exc}")
+            raise typer.Exit(code=1) from None
+    if not spec:
+        console.print(
+            "[bold red]--spec is required[/bold red] (except with --replay of a cassette that recorded it)."
+        )
+        raise typer.Exit(code=2)
+
     try:
         if dry_run:
             result = _run_dry_run(spec, settings, confirm_authorized)
         else:
-            result = _run_scan(spec, settings, confirm_authorized)
+            result = _run_scan(spec, settings, confirm_authorized, record, replay)
     except ScopeError as exc:
         console.print(f"[bold red]Scope refused:[/bold red] {exc}")
         raise typer.Exit(code=2) from None
@@ -117,6 +148,8 @@ def scan(
         _render_scan_summary(result)
     else:
         _render_findings(result)
+        if out:
+            _write_result(out, result)
 
 
 def _run_dry_run(spec: str, settings, confirm_authorized: bool) -> ScanResult:
@@ -164,7 +197,13 @@ _SEVERITY_STYLE = {
 }
 
 
-def _run_scan(spec: str, settings, confirm_authorized: bool) -> ScanResult:
+def _run_scan(
+    spec: str,
+    settings,
+    confirm_authorized: bool,
+    record_dir: str | None = None,
+    replay_dir: str | None = None,
+) -> ScanResult:
     with Progress(
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
@@ -181,9 +220,21 @@ def _run_scan(spec: str, settings, confirm_authorized: bool) -> ScanResult:
 
         return asyncio.run(
             runner.scan(
-                spec, settings, confirm_authorized=confirm_authorized, on_progress=on_progress
+                spec,
+                settings,
+                confirm_authorized=confirm_authorized,
+                record_dir=record_dir,
+                replay_dir=replay_dir,
+                on_progress=on_progress,
             )
         )
+
+
+def _write_result(out: str, result: ScanResult) -> None:
+    path = Path(out)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(result.model_dump_json(indent=2), encoding="utf-8")
+    console.print(f"[green]Saved result to {out}[/green]")
 
 
 def _render_findings(result: ScanResult) -> None:

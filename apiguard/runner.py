@@ -16,7 +16,7 @@ from collections.abc import Callable
 from urllib.parse import urlparse
 
 from apiguard.core.findings import finalize
-from apiguard.core.http_engine import HttpEngine
+from apiguard.core.http_engine import Cassette, HttpEngine
 from apiguard.core.identity import IdentityManager, UserCredentials
 from apiguard.core.models import ScanResult
 from apiguard.core.scope import ScopeGuard
@@ -94,27 +94,42 @@ async def scan(
     base_url: str | None = None,
     confirm_authorized: bool = False,
     payload_mode: str = "static",
+    record_dir: str | None = None,
+    replay_dir: str | None = None,
     on_progress: ProgressCb | None = None,
 ) -> ScanResult:
     """Full baseline scan: fan every endpoint across all registered scanners.
 
     Scanners run sequentially (they hold per-run guards, e.g. the JWT and
     rate-limit scanners probe once); parallelising is a later optimisation.
+    With `record_dir` the whole scan (spec + auth + scanners) is recorded to a
+    cassette; with `replay_dir` it re-runs entirely from that cassette, offline.
     """
     base_url = base_url or _base_url_of(spec_source)
     ScopeGuard(settings.scope.allowlist).check(base_url, confirm_authorized=confirm_authorized)
 
-    spec = await load_spec(
-        spec_source, allowlist=settings.scope.allowlist, confirm_authorized=confirm_authorized
-    )
-    endpoints = parse_spec(spec)
+    if replay_dir is not None:
+        cassette: Cassette | None = Cassette.load(replay_dir)
+    elif record_dir is not None:
+        cassette = Cassette(mode="record")
+    else:
+        cassette = None
 
     async with HttpEngine(
         max_concurrency=settings.http.max_concurrency,
         rate_limit_per_s=settings.http.rate_limit_per_s,
         timeout_s=settings.http.timeout_s,
         retries=settings.http.retries,
+        cassette=cassette,
     ) as engine:
+        spec = await load_spec(
+            spec_source,
+            allowlist=settings.scope.allowlist,
+            confirm_authorized=confirm_authorized,
+            engine=engine,
+        )
+        endpoints = parse_spec(spec)
+
         identity = IdentityManager(engine, base_url)
         users = {
             name: UserCredentials(**cfg.model_dump()) for name, cfg in settings.users.items()
@@ -133,7 +148,7 @@ async def scan(
             for scanner in scanners:
                 findings.extend(await scanner.run(endpoint))
 
-        return ScanResult(
+        result = ScanResult(
             target=base_url,
             spec_url=spec_source,
             model=settings.model,
@@ -143,3 +158,10 @@ async def scan(
             findings=finalize(findings),  # dedupe + validate + stable sort
             requests_sent=engine.requests_sent,
         )
+
+    # Only a record-mode cassette holds interactions; guard against overwriting
+    # a real cassette with an empty one if both dirs were somehow supplied.
+    if record_dir is not None and cassette is not None and cassette.mode == "record":
+        cassette.save(record_dir, meta={"spec_source": spec_source, "base_url": base_url})
+
+    return result

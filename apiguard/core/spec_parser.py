@@ -53,14 +53,26 @@ async def load_spec(
     *,
     allowlist: list[str] | None = None,
     confirm_authorized: bool = False,
+    engine: object | None = None,
 ) -> dict:
-    """Fetch/read, validate, and dereference an OpenAPI spec into a dict."""
+    """Fetch/read, validate, and dereference an OpenAPI spec into a dict.
+
+    If `engine` (an HttpEngine) is given, the fetch goes through it so it is
+    recorded/replayed with the rest of the scan (cassettes); otherwise a
+    one-shot client is used.
+    """
     if _looks_like_url(source):
         ScopeGuard(allowlist).check(source, confirm_authorized=confirm_authorized)
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.get(source)
-            resp.raise_for_status()
-            text = resp.text
+        if engine is not None:
+            exchange = await engine.send("GET", source)
+            if exchange.status >= 400:
+                raise ValueError(f"Spec fetch returned HTTP {exchange.status} for {source!r}")
+            text = exchange.response.text
+        else:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(source)
+                resp.raise_for_status()
+                text = resp.text
     else:
         text = Path(source).read_text(encoding="utf-8")
 

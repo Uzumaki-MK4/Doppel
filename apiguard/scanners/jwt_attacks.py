@@ -24,7 +24,6 @@ import hashlib
 import hmac
 import json
 import re
-import time
 from pathlib import Path
 from typing import Any
 
@@ -143,7 +142,11 @@ class JwtScanner(Scanner):
                 findings.append(self._finding(endpoint, ex, "weak-secret",
                     f"The JWT signing secret is guessable ({secret!r}); an attacker can forge "
                     f"tokens for any user (including admins).", Severity.CRITICAL, 0.95))
-                expired = {**payload, "iat": int(time.time()) - 7200, "exp": int(time.time()) - 3600}
+                # Expired token derived deterministically from the token's own iat
+                # (shifted into the past) — no wall-clock, so scans are reproducible
+                # and replay from a cassette matches (invariant 3).
+                issued = int(payload.get("iat", 0))
+                expired = {**payload, "iat": issued - 7200, "exp": issued - 3600}
                 exp_ex = await self._send(endpoint, forge_hs256(expired, secret))
                 if accepted(exp_ex.status):
                     findings.append(self._finding(endpoint, exp_ex, "expired-replay",

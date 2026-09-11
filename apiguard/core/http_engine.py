@@ -17,7 +17,8 @@ import asyncio
 import json
 import shlex
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -144,6 +145,97 @@ class HttpExchange:
 
 
 # --------------------------------------------------------------------------- #
+# Cassettes: record/replay HTTP for offline demos + fast tests (upgrade 4)
+# --------------------------------------------------------------------------- #
+class CassetteMiss(RuntimeError):
+    """Raised in replay mode when a request has no recorded interaction."""
+
+
+# Headers that change the response and so must be part of the cassette key
+# (the JWT scanner varies only Authorization; the CORS check varies only Origin).
+_SIGNIFICANT_HEADERS = ("authorization", "origin", "content-type")
+
+
+def _cassette_key(request: httpx.Request, body: str | None) -> str:
+    sig = ";".join(f"{h}={request.headers.get(h, '')}" for h in _SIGNIFICANT_HEADERS)
+    return f"{request.method} {request.url} {body or ''} {sig}"
+
+
+# Stripped on replay: we store the DECODED body (resp.text), so a stale
+# Content-Encoding/Length would make httpx re-decode and crash or mislead.
+_ENCODING_HEADERS = frozenset({"content-encoding", "content-length", "transfer-encoding"})
+
+
+def _response_from_stored(request: httpx.Request, stored: dict) -> httpx.Response:
+    headers = {
+        k: v for k, v in (stored.get("headers") or {}).items() if k.lower() not in _ENCODING_HEADERS
+    }
+    return httpx.Response(
+        status_code=stored["status"],
+        headers=headers,
+        content=(stored.get("body") or "").encode("utf-8"),
+        request=request,
+    )
+
+
+@dataclass
+class Cassette:
+    """A recorded set of HTTP interactions, keyed by method+url+body+significant headers.
+
+    mode="record": every send() is appended, then persisted with save().
+    mode="replay": send() returns the stored response and never hits the network
+    (a miss raises CassetteMiss, so replay cannot silently fall back to live).
+
+    Each key maps to an ORDERED list of responses, so repeated identical requests
+    (e.g. the rate-limit burst) replay faithfully; once a key's list is exhausted
+    the last response repeats.
+
+    Limitations (honest): only status/headers/body are captured, not timing — so
+    time-based detectors (e.g. time-based SQLi) are live-only and will not fire on
+    replay. Non-UTF-8 response bodies may not round-trip exactly.
+    """
+
+    mode: str | None = None  # "record" | "replay" | None
+    meta: dict = field(default_factory=dict)
+    _store: dict[str, list[dict]] = field(default_factory=dict)
+    _cursor: dict[str, int] = field(default_factory=dict)
+    _interactions: list[dict] = field(default_factory=list)
+
+    def lookup(self, key: str) -> dict:
+        responses = self._store.get(key)
+        if not responses:
+            raise CassetteMiss(f"No recorded interaction for: {key}")
+        index = self._cursor.get(key, 0)
+        self._cursor[key] = index + 1
+        return responses[min(index, len(responses) - 1)]
+
+    def record(self, key: str, request: dict, response: dict) -> None:
+        self._store.setdefault(key, []).append(response)
+        self._interactions.append({"key": key, "request": request, "response": response})
+
+    def save(self, directory: str, meta: dict | None = None) -> None:
+        path = Path(directory)
+        path.mkdir(parents=True, exist_ok=True)
+        payload = {"meta": meta or self.meta, "interactions": self._interactions}
+        (path / "cassette.json").write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+
+    @classmethod
+    def load(cls, directory: str) -> Cassette:
+        data = json.loads((Path(directory) / "cassette.json").read_text(encoding="utf-8"))
+        cassette = cls(mode="replay", meta=data.get("meta", {}))
+        for interaction in data.get("interactions", []):
+            cassette._store.setdefault(interaction["key"], []).append(interaction["response"])
+        return cassette
+
+    @staticmethod
+    def read_meta(directory: str) -> dict:
+        data = json.loads((Path(directory) / "cassette.json").read_text(encoding="utf-8"))
+        return data.get("meta", {})
+
+
+# --------------------------------------------------------------------------- #
 # The engine
 # --------------------------------------------------------------------------- #
 class HttpEngine:
@@ -158,12 +250,14 @@ class HttpEngine:
         retries: int = 2,
         default_headers: dict[str, str] | None = None,
         follow_redirects: bool = False,
+        cassette: Cassette | None = None,
     ) -> None:
         self._client = httpx.AsyncClient(timeout=timeout_s, follow_redirects=follow_redirects)
         self._sem = asyncio.Semaphore(max_concurrency)
         self._rl = _RateLimiter(rate_limit_per_s)
         self._retries = retries
         self._default_headers = dict(default_headers or {})
+        self._cassette = cassette
         self.requests_sent = 0
 
     async def __aenter__(self) -> HttpEngine:
@@ -198,6 +292,24 @@ class HttpEngine:
             body = json.dumps(json_body)
             req_headers.setdefault("Content-Type", "application/json")
         content = body.encode() if body is not None else None
+
+        def _build():
+            return self._client.build_request(
+                method.upper(), url, headers=req_headers, params=params or None, content=content
+            )
+
+        # Replay: return the recorded response, no network (a miss raises).
+        if self._cassette is not None and self._cassette.mode == "replay":
+            request = _build()
+            stored = self._cassette.lookup(_cassette_key(request, body))
+            resp = _response_from_stored(request, stored)
+            self.requests_sent += 1
+            return HttpExchange(
+                response=resp,
+                evidence=_build_evidence(method, str(request.url), req_headers, body, resp),
+            )
+
+        key = _cassette_key(_build(), body)
         last_exc: Exception | None = None
 
         for attempt in range(self._retries + 1):
@@ -205,12 +317,20 @@ class HttpEngine:
                 await self._rl.wait()
                 self.requests_sent += 1
                 try:
-                    resp = await self._client.request(
-                        method.upper(), url, headers=req_headers, params=params or None, content=content
-                    )
+                    resp = await self._client.send(_build())
                 except (httpx.TransportError, httpx.TimeoutException) as exc:
                     last_exc = exc
                 else:
+                    if self._cassette is not None and self._cassette.mode == "record":
+                        self._cassette.record(
+                            key,
+                            {"method": method.upper(), "url": str(resp.request.url), "body": body},
+                            {
+                                "status": resp.status_code,
+                                "headers": dict(resp.headers),
+                                "body": resp.text,
+                            },
+                        )
                     return HttpExchange(
                         response=resp,
                         evidence=_build_evidence(
