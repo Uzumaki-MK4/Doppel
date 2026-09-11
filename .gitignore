@@ -1,0 +1,21 @@
+# Virtual environment
+.venv/
+
+# Python bytecode / build
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# Real config with credentials (only config.example.yaml is committed)
+config.yaml
+
+# Generated LLM prompt/response logs (regenerated each run, can be large)
+logs/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/

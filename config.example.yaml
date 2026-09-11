@@ -1,0 +1,43 @@
+# APIGuard configuration example.
+# Copy to config.yaml and edit. config.yaml is gitignored (it holds credentials).
+# Values here are placeholders; scan-tuning values are calibrated later (see BRAIN.md D22-D24).
+
+# --- LLM (one model, two temperatures — BRAIN.md Section 3) ---
+model: qwen3:8b
+seed: 42                     # pinned for reproducibility (invariant 3)
+temperature_payload: 0.8    # payload generation
+temperature_oracle: 0.0     # response oracle (deterministic)
+ollama_host: "http://127.0.0.1:11434"
+
+# --- Scope guard (invariant 7 — mandatory, never bypassed) ---
+# No request leaves the tool unless the target host is in this allowlist.
+# Non-localhost targets additionally require the --confirm-authorized CLI flag.
+scope:
+  allowlist:
+    - localhost
+    - 127.0.0.1
+
+# --- HTTP engine (async, shared client — invariant 8) ---
+http:
+  timeout_s: 15
+  max_concurrency: 10
+  rate_limit_per_s: 20
+  retries: 2
+
+# --- Identity: two users, for BOLA/BFLA cross-access testing ---
+# Do NOT commit real passwords. Set them in config.yaml or via environment.
+users:
+  userA:
+    username: userA
+  userB:
+    username: userB
+
+# --- Confidence signal weights (scoring/confidence.py — BRAIN.md Section 5) ---
+# Placeholders that sum to 1.0. Confidence is COMPUTED from these signals,
+# never asked of the model (invariant 5). Weights are tuned on D22-D24.
+confidence_weights:
+  id_echo: 0.30
+  field_overlap: 0.20
+  body_divergence: 0.20
+  status_match: 0.10
+  oracle_verdict: 0.20

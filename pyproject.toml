@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "apiguard"
+version = "0.1.0"
+description = "AI-powered API vulnerability scanner (BOLA/IDOR via a local LLM oracle)."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Mayurdhvajsinh" }]
+license = { text = "MIT" }
+
+# Runtime dependencies. Fixed by BRAIN.md Section 3 — do not substitute or add
+# without updating BRAIN.md first.
+dependencies = [
+    "httpx>=0.27",
+    "pydantic>=2.5",
+    "pydantic-settings>=2.2",
+    "openapi-spec-validator>=0.7",
+    "PyYAML>=6.0",
+    "ollama>=0.3",
+    "typer>=0.12",
+    "rich>=13.7",
+    "streamlit>=1.35",
+    "jinja2>=3.1",
+]
+
+[project.optional-dependencies]
+# Test-only tools. Installed with:  pip install -e ".[dev]"
+dev = [
+    "pytest>=8.0",
+    "respx>=0.21",
+]
+
+# The engine is a library; cli.py is a thin consumer (BRAIN.md invariant 1).
+# The `apiguard` command comes online on Day 6 when apiguard/cli.py:main exists.
+[project.scripts]
+apiguard = "apiguard.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["apiguard*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
