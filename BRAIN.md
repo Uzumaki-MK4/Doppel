@@ -252,7 +252,7 @@ Weighted sum, weights in config so they are tunable and defensible.
 Six working days per week. Each day has a Done-when condition. Do not tick a box without verifying.
 
 ### Week 1 — Foundation
-- [ ] **D1** Repo, venv, deps, VAmPI in Docker, Ollama + model pulled. *Done when: `ollama run <model> "hi"` works and VAmPI's spec loads.*
+- [x] **D1** Repo, venv, deps, VAmPI in Docker, Ollama + model pulled. *Done when: `ollama run <model> "hi"` works and VAmPI's spec loads.* — **DONE 2026-09-12, verified.**
 - [ ] **D2** `core/models.py`. *Done when: a `Finding` can be built in a REPL and serialized.*
 - [ ] **D3** `core/spec_parser.py` incl. `$ref` resolution. *Done when: `apiguard parse <url>` tables every endpoint + params.*
 - [ ] **D4** `core/http_engine.py`. *Done when: every VAmPI endpoint can be hit and returns a status.*
@@ -299,18 +299,21 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 0 — nothing built yet.
-**Last session:** none.
-**Completed:** nothing.
+**Current day:** Day 1 — complete and verified.
+**Last session:** 2026-09-12 — Day 1 environment + repo skeleton.
+**Completed:** D1. Python 3.11.9 venv with the full Section 3 stack installed (editable). Repo skeleton, `pyproject.toml`, `config.example.yaml`, `.gitignore`, `README.md` committed (`git init`, branch `main`). VAmPI running in Docker; spec verified. qwen3:8b pulled and verified through a schema-constrained call.
 **In progress:** nothing.
 **Blocked / broken:** nothing.
-**Next action:** Day 1 setup.
+**Next action:** Day 2 — write `core/models.py` (Severity, Parameter, Endpoint, Evidence, AITrace, Finding, ScanResult as pydantic v2 models per Section 5). Done when a `Finding` builds in a REPL and `.model_dump_json()` works.
 
-**Environment facts discovered** (fill these in as we learn them):
-- GPU / VRAM: *unknown — ask the user*
-- Model actually in use: *not yet pulled*
-- VAmPI spec URL: `http://localhost:5000/openapi.json` (unverified)
-- Python version: *unverified*
+**Environment facts discovered:**
+- GPU / VRAM: NVIDIA RTX 4070, 12 GB (~10.8 GB free). Ollama runs on CUDA (compute 8.9). Integrated Intel UHD 770 is ignored by Ollama.
+- Model actually in use: `qwen3:8b` (5.2 GB, Q4). This is `settings.model` default.
+- **qwen3:8b has thinking ON by default.** The inline `/no_think` token is NOT honored through the `ollama run` CLI. The engine must pass `think=False` to the ollama-python `chat()` call. Verified: `format=<schema>` + `think=False` returns clean, schema-valid JSON (`{"ok": true}` -> pydantic-validated). This is the D13 pattern.
+- VAmPI spec URL: `http://localhost:5000/openapi.json` — **VERIFIED.** OpenAPI 3.0.1, title "VAmPI", 12 paths.
+- Python: 3.11.9 at `%LOCALAPPDATA%\Programs\Python\Python311\python.exe` (not on the global shell PATH). Project venv at `.venv\` (activate: `.venv\Scripts\Activate.ps1`).
+- Docker: 29.3.1 (Docker Desktop engine, must be running). VAmPI container name: `vampi`.
+- winget: usable only via the full path to the x64 App Installer build; the WindowsApps `winget` alias is missing on this machine.
 
 ---
 
@@ -322,6 +325,9 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — One model, two temperatures, rather than two models — halves VRAM for no capability loss.
 - 2026-09-12 — Confidence computed from signals, not requested from the model — an LLM's stated confidence is a plausible token, not a probability, and claiming otherwise is indefensible in a viva.
 - 2026-09-12 — Week 2 scanners deliberately compressed — they are commodity and exist only as the control group for the ablation.
+- 2026-09-12 — LLM called with `think=False` + `format=<schema>`, not the inline `/no_think` token — qwen3:8b thinks by default and the CLI ignores the inline token; the API `think` flag is the reliable off switch and keeps oracle output deterministic and clean.
+- 2026-09-12 — `pytest`+`respx` declared as a `[dev]` optional-dependencies extra, not runtime deps — same libraries as Section 3, only test-scoped; install with `pip install -e ".[dev]"`. Runtime install stays minimal.
+- 2026-09-12 — Locked `qwen3:8b` on an RTX 4070 (12 GB) — measured hardware puts us in the recommended tier with headroom; matches Section 3 default.
 
 ---
 
