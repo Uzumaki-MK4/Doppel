@@ -202,3 +202,26 @@ One short entry per working day: what was built, what broke, what was decided.
 - D10 `misconfig.py` + `rate_limit.py`, and the real scan path in `runner.py`: rate-limit testing bursts many requests (interacts with the engine's own rate limiter — may need to bypass it for the burst); misconfig checks headers/CORS/verbose errors (the GET /books/v1 500 and the debug error pages are candidates). Wiring `build_scanners()` into a real `scan` that fans all endpoints and collects findings is the integration risk.
 
 **Next** — Day 10: `scanners/misconfig.py` + `scanners/rate_limit.py` + real scan path.
+
+## Day 10 — 2026-09-12 — Misconfig + rate-limit scanners; full scan path
+
+**Explored first (live)**
+- VAmPI: no security headers; `Server: Werkzeug/2.2.3 Python/3.11.15` disclosed; no CORS headers. `GET /books/v1` unauth is 200 (500 only when DB uninitialized) and serves data despite spec auth -> BFLA signal for Week 4. Corrected the earlier "500" note.
+
+**Built**
+- `apiguard/scanners/misconfig.py`: missing security headers, server/version disclosure, permissive CORS (checked once), verbose-error/stack-trace per endpoint.
+- `apiguard/scanners/rate_limit.py`: bursts a no-param GET, flags absence of 429 (runs once).
+- `runner.scan()`: sequential fan-out of `build_scanners()` over every endpoint, collecting findings into a `ScanResult`.
+- `apiguard/cli.py`: `apiguard scan` (no --dry-run) runs the real scan and renders a findings table (severity-sorted, coloured).
+- Tests: misconfig (4), rate_limit (3), runner scan integration (1).
+
+**Verified — Day 10 done-condition met**
+- Live: `apiguard scan --spec http://localhost:5000/openapi.json` -> 5 findings (CRITICAL weak JWT secret; HIGH SQLi; LOW missing-headers, version-disclosure, no-rate-limit), 0 false positives, 119 requests across 14 endpoints.
+- `pytest -q` -> 60 passed.
+
+**Decided** — see BRAIN.md Section 9 (sequential fan-out, misconfig global-once, rate_limit burst-via-engine caveat).
+
+**Most likely to break next**
+- D11: assigning a deterministic `Finding.id` at dedup without breaking the ids scanners already set; deciding the dedup key (scanner + owasp + endpoint + param); confirming every finding still carries a curl repro. Low risk (evidence + curl already present), mostly hardening + the OWASP mapping review.
+
+**Next** — Day 11: dedup, severity, OWASP mapping, evidence capture.

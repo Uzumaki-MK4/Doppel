@@ -264,7 +264,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - [x] **D7** `scanners/base.py` ABC + registry. *Done when: a dummy scanner is auto-discovered.* — **DONE 2026-09-12, verified (file-drop discovery; 39 tests pass).**
 - [x] **D8** `scanners/injection.py` (SQLi + XSS). *Done when: finds VAmPI's known SQLi.* — **DONE 2026-09-12, verified (finds SQLi in GET /users/v1/{username}, 1 finding, 0 FP; 44 tests pass).**
 - [x] **D9** `scanners/ssrf.py` + `scanners/jwt_attacks.py`. *Done when: JWT module flags a real weakness.* — **DONE 2026-09-12, verified (JWT flags weak secret 'random' on VAmPI, CRITICAL; 52 tests pass).**
-- [ ] **D10** `scanners/misconfig.py` + `scanners/rate_limit.py`. *Done when: full baseline scan produces a findings list.*
+- [x] **D10** `scanners/misconfig.py` + `scanners/rate_limit.py`. *Done when: full baseline scan produces a findings list.* — **DONE 2026-09-12, verified (`apiguard scan` -> 5 findings on VAmPI; 60 tests pass).**
 - [ ] **D11** Dedup, severity, OWASP mapping, evidence capture. *Done when: no dupes, every finding has a curl repro.*
 - [ ] **D12** pytest + respx, first cassettes. *Done when: pytest green, `benchmark/results/baseline.json` saved.*
 
@@ -300,18 +300,19 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 9 — complete and verified. (Week 2, day 3 of 6.)
-**Last session:** 2026-09-12 — Day 9 `scanners/jwt_attacks.py` + `scanners/ssrf.py`.
-**Completed:** D1–D9. `scanners/jwt_attacks.py` (alg:none, sig-strip, weak-secret forgery, expired-replay; stdlib JWT, no PyJWT), `scanners/ssrf.py` (metadata/internal-URL injection). `wordlists/jwt_secrets.txt`. 52 tests pass. Live: JWT flags VAmPI weak secret 'random' (CRITICAL); SSRF finds nothing (honest).
+**Current day:** Day 10 — complete and verified. (Week 2, day 4 of 6.)
+**Last session:** 2026-09-12 — Day 10 misconfig + rate_limit scanners + real `runner.scan()` + `scan` CLI.
+**Completed:** D1–D10. `scanners/misconfig.py` (missing headers, version disclosure, CORS, verbose errors), `scanners/rate_limit.py` (burst -> 429 check), `runner.scan()` (sequential fan-out across `build_scanners()`), `apiguard scan` renders a findings table. 60 tests pass. Live: `apiguard scan` -> 5 findings on VAmPI (CRITICAL weak JWT secret, HIGH SQLi, 3x LOW), 0 FP, 119 requests.
 **In progress:** nothing.
 **Blocked / broken:** nothing.
-**Next action:** Day 10 — `scanners/misconfig.py` (security headers, permissive CORS, stack traces / verbose errors in bodies) + `scanners/rate_limit.py` (burst N requests, check for 429). Done when a full baseline scan produces a findings list. This is the day to add the real (non-dry) scan path in `runner.py` that fans every endpoint across `build_scanners()` and collects findings (and likely a `scan` CLI without `--dry-run`).
+**Next action:** Day 11 — dedup, severity assignment, OWASP mapping on `Finding`, evidence-capture polish. Done when: no duplicate findings and every finding carries a reproducible curl (already true; verify + harden). Likely: assign deterministic `Finding.id` at dedup (flagged in D2), reconsider the injection `API8:2023` mapping, ensure global findings (missing-headers etc.) can't duplicate if the scan later parallelises.
 
 **VAmPI JWT facts (Week-4 / report):**
 - Signing secret is the guessable **`random`** (HS256). alg:none and signature-strip are correctly REJECTED. So VAmPI's JWT weakness is the weak secret, not alg confusion. With the secret, tokens can be forged for any user (path to BFLA/account takeover).
 
-**Still deferred (revisit at D10/D11):**
-- No real (non-dry) `apiguard scan` path yet — the injection scanner was verified by running it directly. D10 ("full baseline scan produces a findings list") should add the scan path in `runner.py` that fans endpoints across `build_scanners()` and collects findings; D11 does dedup/severity/OWASP/evidence.
+**VAmPI misconfig facts (corrects the earlier "GET /books/v1 500" note):**
+- `GET /books/v1` returns 500 ONLY when the DB is uninitialized; after `/createdb` it returns **200 and serves the book list unauthenticated despite its spec requiring `bearerAuth`** — an auth-not-enforced / BFLA signal for Week 4, not a generic 500.
+- No security headers; `Server: Werkzeug/2.2.3 Python/3.11.15` disclosed; no CORS headers; no rate limiting. These are the LOW findings the misconfig/rate_limit scanners report.
 
 **Scanner contract (D7):** subclass `Scanner`, set `name` (and `owasp_id`), implement `async def run(self, endpoint) -> list[Finding]`. Construction takes a `ScanContext`. Access the engine via `self.engine` / `self.base_url`. Just adding a file under `apiguard/scanners/` registers it (no CLI edit).
 
@@ -375,6 +376,9 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — JWTs forged with the standard library (base64+hmac+hashlib), not PyJWT (D9) — avoids adding a dependency outside Section 3; alg:none, signature-strip and HS256 weak-secret forgery are all trivial to build by hand.
 - 2026-09-12 — JWT scanner probes only an idempotent authed GET, once per run — a create/update endpoint changes state between forged-token requests and confounds the accept-vs-reject status comparison (caught live: it initially targeted POST /books/v1 and found nothing). The weak-secret finding is global; it is demonstrated on the chosen GET.
 - 2026-09-12 — SSRF reports nothing on VAmPI and that is the correct result — VAmPI has no URL-fetching parameters; we do not invent a finding (invariant: never fabricate).
+- 2026-09-12 — `runner.scan()` runs scanners SEQUENTIALLY over endpoints (D10) — scanners hold per-run guards (JWT/rate_limit probe once; misconfig checks globals once), which parallel execution would race; parallelising is a later optimisation, not needed for VAmPI-scale.
+- 2026-09-12 — misconfig runs header/version/CORS checks once (first endpoint) and verbose-error per endpoint — those three are server-global, so one finding each avoids 14 duplicates; global finding ids are fixed strings so dedup (D11) is trivial.
+- 2026-09-12 — rate_limit bursts one no-parameter GET via the shared engine — the engine's own rate limiter paces the burst (documented caveat: a very low configured rate could mask a server limit), but N requests with no 429 still proves VAmPI has no limiting.
 
 ---
 
