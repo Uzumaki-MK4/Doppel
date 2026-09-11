@@ -1,0 +1,6 @@
+# Static reflected-XSS payloads. No single quotes, so they do not trip SQL
+# error pages; detection requires the marker to reflect unescaped in HTML.
+<script>apiguardXSS</script>
+"><svg onload=alert(1)>
+<apiguardXSSMARKER>
+<img src=x onerror=alert(1)>

