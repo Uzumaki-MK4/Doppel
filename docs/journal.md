@@ -48,3 +48,28 @@ One short entry per working day: what was built, what broke, what was decided.
 - `$ref` resolution in D3. VAmPI's spec is small, but the resolver's output shape (fully-dereferenced dict) must map cleanly onto `Parameter`/`Endpoint`. `request_body_schema` stays a raw dict by design, so that part is low-risk.
 
 **Next** — Day 3: `core/spec_parser.py`.
+
+## Day 3 — 2026-09-12 — Spec parser, scope guard, parse CLI
+
+**Built**
+- `apiguard/core/spec_parser.py`: async `load_spec` (scope-guard -> httpx fetch / file read -> `openapi-spec-validator` -> internal `$ref` deref) and pure `parse_spec(dict) -> list[Endpoint]` mapping params, `requestBody`, and per-operation `security`.
+- `apiguard/core/scope.py`: invariant-7 `ScopeGuard`. Host must be allowlisted; non-localhost also needs `--confirm-authorized`.
+- `apiguard/cli.py`: thin `apiguard parse <url>` with a rich table and clean (traceback-free) error handling. Root callback keeps subcommand style.
+- `tests/test_spec_parser.py`: inline parse, `$ref` deref, scope rules, respx HTTP load, out-of-scope block.
+
+**Verified — Day 3 done-condition met**
+- `apiguard parse http://localhost:5000/openapi.json` -> table of 14 VAmPI operations (12 paths) with params/body/security correctly extracted.
+- `pytest -q` -> 12 passed.
+- Scope guard refuses a non-localhost host cleanly (exit 2), and `--confirm-authorized` does not bypass the allowlist.
+
+**Probed / learned**
+- VAmPI's spec has zero `$ref`s; only `securitySchemes: {bearerAuth}`.
+- `openapi-spec-validator` validates but does not dereference; `jsonschema-path` derefs on traversal but yields lazy objects. Chose a tiny internal resolver (user-approved). See BRAIN.md Section 9.
+- Typer collapses a single-command app; a root callback restores `parse` as a subcommand.
+
+**Decided** — see BRAIN.md Section 9 (internal ref resolver, early scope.py, minimal cli.py, async load_spec).
+
+**Most likely to break next**
+- D4 `http_engine.py`: the shared-`AsyncClient` lifecycle plus rate-limit/concurrency gating. Building a valid request from an `Endpoint` (path-param substitution, auth headers, example bodies) is where VAmPI's real responses will expose gaps. The `Evidence` curl-repro string must exactly reproduce the sent request.
+
+**Next** — Day 4: `core/http_engine.py`.
