@@ -155,7 +155,6 @@ def _render_scan_summary(result: ScanResult) -> None:
     console.print("[green]Dry-run complete. Week 1 plumbing works end to end.[/green]")
 
 
-_SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 _SEVERITY_STYLE = {
     "critical": "bold red",
     "high": "red",
@@ -190,19 +189,18 @@ def _run_scan(spec: str, settings, confirm_authorized: bool) -> ScanResult:
 def _render_findings(result: ScanResult) -> None:
     table = Table(title=f"Findings: {result.target}")
     table.add_column("Severity", no_wrap=True)
+    table.add_column("OWASP", style="magenta", no_wrap=True)
     table.add_column("Scanner", style="cyan", no_wrap=True)
     table.add_column("Title")
     table.add_column("Endpoint", style="white")
     table.add_column("Conf", justify="right")
 
-    ordered = sorted(
-        result.findings,
-        key=lambda f: (_SEVERITY_ORDER.get(f.severity.value, 9), f.scanner),
-    )
-    for finding in ordered:
+    # result.findings is already deduped and severity-sorted by finalize().
+    for finding in result.findings:
         sev = finding.severity.value
         table.add_row(
             f"[{_SEVERITY_STYLE.get(sev, 'white')}]{sev.upper()}[/]",
+            finding.owasp_id,
             finding.scanner,
             finding.title,
             f"{finding.endpoint.method} {finding.endpoint.path}",

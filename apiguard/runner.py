@@ -15,6 +15,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from urllib.parse import urlparse
 
+from apiguard.core.findings import finalize
 from apiguard.core.http_engine import HttpEngine
 from apiguard.core.identity import IdentityManager, UserCredentials
 from apiguard.core.models import ScanResult
@@ -139,6 +140,6 @@ async def scan(
             seed=settings.seed,
             payload_mode=payload_mode,
             endpoints=endpoints,
-            findings=findings,
+            findings=finalize(findings),  # dedupe + validate + stable sort
             requests_sent=engine.requests_sent,
         )
