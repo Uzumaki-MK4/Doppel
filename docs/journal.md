@@ -177,3 +177,28 @@ One short entry per working day: what was built, what broke, what was decided.
 - D9 `jwt_attacks.py`: needs a real JWT to tamper (from `ScanContext.sessions`); crafting `alg:none` and signature-strip variants and confirming VAmPI *accepts* one (the real weakness) means reading how VAmPI validates the token. `ssrf.py` will likely find nothing on VAmPI (no URL-fetching params) — report that honestly rather than inventing a finding.
 
 **Next** — Day 9: `scanners/ssrf.py` + `scanners/jwt_attacks.py`.
+
+## Day 9 — 2026-09-12 — JWT + SSRF scanners
+
+**Explored first (live)**
+- VAmPI REJECTS alg:none and signature-strip (401). It ACCEPTS a token forged with the weak HS256 secret **`random`** (200). So VAmPI's JWT weakness is a guessable signing secret, not alg confusion.
+
+**Built**
+- `apiguard/scanners/jwt_attacks.py`: forges alg:none, sig-strip, weak-secret (HS256 re-sign from a wordlist) and expired tokens (stdlib only), flags any the server accepts vs a garbage-token baseline. Runs once on an idempotent authed GET.
+- `apiguard/scanners/ssrf.py`: injects metadata/internal URLs into URL-shaped params; flags on metadata signatures.
+- `wordlists/jwt_secrets.txt`.
+- `tests/test_jwt_attacks.py` (5, incl. a real HS256-validating mock server), `tests/test_ssrf.py` (3).
+
+**Broke, then fixed (live)**
+- First live run found 0 JWT findings: the scanner had targeted `POST /books/v1` (a create), whose state changed between forged-token requests and broke the status comparison. Fixed by probing only an idempotent authed GET; it then flagged the weak secret.
+
+**Verified — Day 9 done-condition met**
+- Live: JWT flags weak secret 'random' (CRITICAL, conf 0.95) on GET /books/v1/{book_title}. SSRF: 0 findings (honest — no URL params).
+- `pytest -q` -> 52 passed.
+
+**Decided** — see BRAIN.md Section 9 (stdlib JWT forging, idempotent-GET probe, SSRF honest-empty).
+
+**Most likely to break next**
+- D10 `misconfig.py` + `rate_limit.py`, and the real scan path in `runner.py`: rate-limit testing bursts many requests (interacts with the engine's own rate limiter — may need to bypass it for the burst); misconfig checks headers/CORS/verbose errors (the GET /books/v1 500 and the debug error pages are candidates). Wiring `build_scanners()` into a real `scan` that fans all endpoints and collects findings is the integration risk.
+
+**Next** — Day 10: `scanners/misconfig.py` + `scanners/rate_limit.py` + real scan path.

@@ -263,7 +263,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 ### Week 2 — Baseline scanners (compressed on purpose, do not gold-plate)
 - [x] **D7** `scanners/base.py` ABC + registry. *Done when: a dummy scanner is auto-discovered.* — **DONE 2026-09-12, verified (file-drop discovery; 39 tests pass).**
 - [x] **D8** `scanners/injection.py` (SQLi + XSS). *Done when: finds VAmPI's known SQLi.* — **DONE 2026-09-12, verified (finds SQLi in GET /users/v1/{username}, 1 finding, 0 FP; 44 tests pass).**
-- [ ] **D9** `scanners/ssrf.py` + `scanners/jwt_attacks.py`. *Done when: JWT module flags a real weakness.*
+- [x] **D9** `scanners/ssrf.py` + `scanners/jwt_attacks.py`. *Done when: JWT module flags a real weakness.* — **DONE 2026-09-12, verified (JWT flags weak secret 'random' on VAmPI, CRITICAL; 52 tests pass).**
 - [ ] **D10** `scanners/misconfig.py` + `scanners/rate_limit.py`. *Done when: full baseline scan produces a findings list.*
 - [ ] **D11** Dedup, severity, OWASP mapping, evidence capture. *Done when: no dupes, every finding has a curl repro.*
 - [ ] **D12** pytest + respx, first cassettes. *Done when: pytest green, `benchmark/results/baseline.json` saved.*
@@ -300,12 +300,15 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 8 — complete and verified. (Week 2, day 2 of 6.)
-**Last session:** 2026-09-12 — Day 8 `scanners/injection.py` + wordlists.
-**Completed:** D1–D8. `scanners/injection.py`: one loop over path/query params; SQLi (error-signature + time-delay), reflected XSS (HTML reflection). `wordlists/{sqli,xss}.txt`. 44 tests pass. Live: finds VAmPI's SQLi in GET /users/v1/{username} (HIGH, conf 0.9), 1 finding, 0 FP.
+**Current day:** Day 9 — complete and verified. (Week 2, day 3 of 6.)
+**Last session:** 2026-09-12 — Day 9 `scanners/jwt_attacks.py` + `scanners/ssrf.py`.
+**Completed:** D1–D9. `scanners/jwt_attacks.py` (alg:none, sig-strip, weak-secret forgery, expired-replay; stdlib JWT, no PyJWT), `scanners/ssrf.py` (metadata/internal-URL injection). `wordlists/jwt_secrets.txt`. 52 tests pass. Live: JWT flags VAmPI weak secret 'random' (CRITICAL); SSRF finds nothing (honest).
 **In progress:** nothing.
 **Blocked / broken:** nothing.
-**Next action:** Day 9 — `scanners/ssrf.py` (internal ranges, cloud metadata endpoints) + `scanners/jwt_attacks.py` (`alg:none`, signature strip, expired-token replay). Done when the JWT module flags a real weakness on VAmPI. NOTE: VAmPI login returns a JWT (see auth facts); the JWT scanner needs a real token to tamper — pull it from `ScanContext.sessions`. SSRF likely finds nothing on VAmPI (no URL-fetch params); report honestly.
+**Next action:** Day 10 — `scanners/misconfig.py` (security headers, permissive CORS, stack traces / verbose errors in bodies) + `scanners/rate_limit.py` (burst N requests, check for 429). Done when a full baseline scan produces a findings list. This is the day to add the real (non-dry) scan path in `runner.py` that fans every endpoint across `build_scanners()` and collects findings (and likely a `scan` CLI without `--dry-run`).
+
+**VAmPI JWT facts (Week-4 / report):**
+- Signing secret is the guessable **`random`** (HS256). alg:none and signature-strip are correctly REJECTED. So VAmPI's JWT weakness is the weak secret, not alg confusion. With the secret, tokens can be forged for any user (path to BFLA/account takeover).
 
 **Still deferred (revisit at D10/D11):**
 - No real (non-dry) `apiguard scan` path yet — the injection scanner was verified by running it directly. D10 ("full baseline scan produces a findings list") should add the scan path in `runner.py` that fans endpoints across `build_scanners()` and collects findings; D11 does dedup/severity/OWASP/evidence.
@@ -369,6 +372,9 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — Scanners receive a `ScanContext` (engine, base_url, settings, sessions) at construction — keeps `run(endpoint)` to the exact Section-6 contract while giving scanners the engine now and the two user sessions the BOLA engine needs in Week 4. Small seam added deliberately to avoid reworking every scanner later.
 - 2026-09-12 — Injection: error-signature matching is the primary SQLi detector (D8) — flags a SQL error present with the payload but absent in the benign baseline; VAmPI (SQLite/SQLAlchemy) leaks a clear `sqlite3.OperationalError: unrecognized token` on a `'`. Time-based is a secondary check and will NOT fire on SQLite (no SLEEP); kept for other engines/crAPI. XSS requires the marker to reflect unescaped in an HTML content-type, so JSON echoes are not false-flagged.
 - 2026-09-12 — SQLi/XSS mapped to `owasp_id = "API8:2023"` — OWASP API Top 10 2023 has no standalone Injection category (folded into API8 Security Misconfiguration). Documented so it is defensible; revisit at D11 (OWASP mapping).
+- 2026-09-12 — JWTs forged with the standard library (base64+hmac+hashlib), not PyJWT (D9) — avoids adding a dependency outside Section 3; alg:none, signature-strip and HS256 weak-secret forgery are all trivial to build by hand.
+- 2026-09-12 — JWT scanner probes only an idempotent authed GET, once per run — a create/update endpoint changes state between forged-token requests and confounds the accept-vs-reject status comparison (caught live: it initially targeted POST /books/v1 and found nothing). The weak-secret finding is global; it is demonstrated on the chosen GET.
+- 2026-09-12 — SSRF reports nothing on VAmPI and that is the correct result — VAmPI has no URL-fetching parameters; we do not invent a finding (invariant: never fabricate).
 
 ---
 
