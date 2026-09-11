@@ -116,3 +116,26 @@ One short entry per working day: what was built, what broke, what was decided.
 - D6 `scan --dry-run`: wiring parse + two-user login + touch-every-endpoint into one `rich`-progress command, and deciding where the two default users' credentials come from (a first cut of `settings.py`/config vs CLI flags). Keeping cli.py logic-free (invariant 1) while orchestrating is the design tension — the orchestration likely belongs in a small engine/runner the CLI calls.
 
 **Next** — Day 6: `cli.py scan --dry-run` (closes Week 1).
+
+## Day 6 — 2026-09-12 — settings + runner + scan --dry-run (WEEK 1 DONE)
+
+**Built**
+- `apiguard/settings.py`: pydantic-settings loader. `load_settings()` reads `config.yaml` or uses defaults (model/seed, scope allowlist, two disposable VAmPI users, http params, confidence weights). Zero-config so dry-run runs out of the box.
+- `apiguard/runner.py` (new module, recorded in BRAIN Section 4): `dry_run()` parses the spec, logs in both users via `IdentityManager`, touches every endpoint as User A, returns a `ScanResult`. Progress via callback (rich stays in the CLI).
+- `apiguard/cli.py`: `scan --spec <url> --dry-run` — thin wrapper with a rich progress bar and a summary table.
+- `config.example.yaml`: users now carry passwords (match the defaults).
+- Tests: settings (4), runner (3).
+
+**Verified — Day 6 done-condition met; WEEK 1 COMPLETE**
+- `apiguard scan --spec http://localhost:5000/openapi.json --dry-run` -> parsed, logged in both users, touched all 14 endpoints; summary shows 18 requests (4 auth + 14 probes), 0 findings. VAmPI reset -> 200.
+- `pytest -q` -> 34 passed.
+
+**Decided** — see BRAIN.md Section 9 (runner module, minimal settings.py, dry-run touches as User A / is not no-network).
+
+**Week 1 retro**
+- Plumbing is end to end: env -> models -> parser -> scope guard -> http engine (evidence + curl) -> two-user identity -> settings -> runner -> CLI. 34 tests, all green. No detection logic yet, by design.
+
+**Most likely to break next**
+- D7 `scanners/base.py`: getting auto-registration right (a registry that discovers `Scanner` subclasses without the CLI importing each one) and settling the `Scanner.run(endpoint) -> list[Finding]` contract so Week-2 scanners and the (future) real scan path in `runner.py` compose cleanly.
+
+**Next** — Day 7 (Week 2): `scanners/base.py`.

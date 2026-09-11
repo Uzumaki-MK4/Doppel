@@ -109,6 +109,7 @@ Never load two models.
 apiguard/
 ├── apiguard/
 │   ├── cli.py                  Typer entry point. NO logic.
+│   ├── runner.py               scan orchestration (parse + identity + touch). CLI calls this.
 │   ├── settings.py             pydantic-settings config loader
 │   ├── core/
 │   │   ├── models.py           Finding, Endpoint, Parameter, ScanResult
@@ -257,7 +258,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - [x] **D3** `core/spec_parser.py` incl. `$ref` resolution. *Done when: `apiguard parse <url>` tables every endpoint + params.* — **DONE 2026-09-12, verified (tables 14 VAmPI ops; 12 tests pass).**
 - [x] **D4** `core/http_engine.py`. *Done when: every VAmPI endpoint can be hit and returns a status.* — **DONE 2026-09-12, verified (all 14 VAmPI ops hit; 20 tests pass).**
 - [x] **D5** `core/identity.py`, two users. *Done when: both users hold valid tokens and can call an authed endpoint.* — **DONE 2026-09-12, verified (userA+userB each GET /me -> 200; 27 tests pass).**
-- [ ] **D6** `cli.py` + rich progress. *Done when: `apiguard scan --dry-run` parses, logs in both users, touches every endpoint.*
+- [x] **D6** `cli.py` + rich progress. *Done when: `apiguard scan --dry-run` parses, logs in both users, touches every endpoint.* — **DONE 2026-09-12, verified (touches all 14 VAmPI ops; 34 tests pass). WEEK 1 COMPLETE.**
 
 ### Week 2 — Baseline scanners (compressed on purpose, do not gold-plate)
 - [ ] **D7** `scanners/base.py` ABC + registry. *Done when: a dummy scanner is auto-discovered.*
@@ -299,12 +300,12 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 5 — complete and verified. **Week 1 is one day from done (D6 left).**
-**Last session:** 2026-09-12 — Day 5 `core/identity.py` (+ engine `json_body`).
-**Completed:** D1–D5. `core/identity.py`: `IdentityManager` (register best-effort -> login -> cached `Session` with Bearer headers; `session_for(name)`), auth flow in `AuthFlow` (VAmPI defaults). `HttpEngine.send` gained `json_body`. 27 tests pass. Live: userA+userB each authenticate with distinct JWTs and GET /me -> 200.
+**Current day:** Day 6 — complete and verified. **WEEK 1 COMPLETE.** (Next: Week 2, baseline scanners.)
+**Last session:** 2026-09-12 — Day 6 `settings.py` + `runner.py` + `scan --dry-run`.
+**Completed:** D1–D6 (all of Week 1). `settings.py` (pydantic-settings loader, zero-config defaults), `runner.py` (new orchestration module; `dry_run` parses + logs in both users + touches every endpoint as User A -> `ScanResult`), `cli.py scan --spec <url> --dry-run` (rich progress + summary). 34 tests pass. Live: dry-run touched all 14 VAmPI ops, 18 requests.
 **In progress:** nothing.
 **Blocked / broken:** nothing.
-**Next action:** Day 6 — `cli.py` `scan --dry-run`: wire D3–D5 into one command that parses the spec, logs in both users, and touches every endpoint with a `rich` progress bar. Done when `apiguard scan --dry-run` runs end to end. This closes Week 1 (plumbing complete, no detection yet). Decide where the two default users' creds live (a first cut of `settings.py`/config vs CLI flags).
+**Next action:** Day 7 (Week 2) — `scanners/base.py`: abstract `Scanner` (`async def run(self, endpoint) -> list[Finding]`) + a registry so scanners auto-discover. Done when a dummy scanner is auto-discovered and picked up. Week 2 scanners are the control group — deliberately compressed, do not gold-plate. The runner will grow a real (non-dry) scan path that fans endpoints across registered scanners.
 
 **VAmPI auth facts (for Week-4 BOLA):**
 - Register: `POST /users/v1/register` JSON `{username,password,email}`. Login: `POST /users/v1/login` JSON `{username,password}` -> `{auth_token: <JWT>, ...}`. Auth header: `Authorization: Bearer <JWT>` (raw token is rejected by the OpenAPI layer).
@@ -356,6 +357,9 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — Target auth flow captured in an `AuthFlow` config, not hardcoded (D5) — register/login paths, field names, token key and header format vary per target; VAmPI defaults now, crAPI becomes another `AuthFlow` in Week 4 without touching identity logic.
 - 2026-09-12 — `IdentityManager.authenticate` registers best-effort then logs in — register is idempotent-friendly (re-runs hit an existing user), login is the token source of truth.
 - 2026-09-12 — Added `HttpEngine.send(json_body=...)` after a real 415 in exploration — a raw JSON body without `Content-Type` is rejected by VAmPI; the helper serializes and sets the header so no JSON caller repeats the trap. `IdentityManager` gets the engine injected (one shared client, invariant 8).
+- 2026-09-12 — New module `apiguard/runner.py` (added to Section 4) holds scan orchestration — keeps `cli.py` logic-free (invariant 1); the CLI passes a progress callback so `rich` stays out of the runner. Week 2+ grows a real scan path here.
+- 2026-09-12 — `settings.py` is a minimal pydantic-settings loader with zero-config defaults incl. two disposable VAmPI users (user-approved) — `scan --dry-run` works with no config file; `config.yaml` (gitignored) overrides. Wires the scope allowlist from config, resolving the earlier localhost-only limitation. (Env-over-YAML precedence deferred.)
+- 2026-09-12 — Dry-run touches endpoints authenticated as User A and still sends real baseline requests (not a no-network mode) — proves identity is wired into the pipeline; run only against a disposable target (VAmPI). Runner stays target-agnostic (no `/createdb` coupling); reset is the caller's concern.
 
 ---
 
