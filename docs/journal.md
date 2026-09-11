@@ -156,3 +156,24 @@ One short entry per working day: what was built, what broke, what was decided.
 - D8 `scanners/injection.py`: sharing one loop for SQLi (error-signature + time-delay) and reflected XSS, mapping payloads onto real parameters (query/body), and reliably detecting VAmPI's known SQLi from response signatures. Also likely needs the real (non-dry) scan path in `runner.py` that fans endpoints across `build_scanners()` and collects findings — decide that scope at D8 start.
 
 **Next** — Day 8: `scanners/injection.py`.
+
+## Day 8 — 2026-09-12 — Injection scanner (SQLi + XSS)
+
+**Explored first (live)**
+- VAmPI SQLi is in `GET /users/v1/{username}` path param: a `'` -> 500 with `sqlalchemy.exc.OperationalError (sqlite3.OperationalError) unrecognized token` (and it leaks the SQL). Login body is NOT injectable.
+
+**Built**
+- `apiguard/scanners/injection.py`: `InjectionScanner` — one loop over path/query params. SQLi = error-signature match (present with payload, absent in baseline) + time-delay (secondary; won't fire on SQLite). XSS = marker reflected unescaped in an HTML content-type.
+- `wordlists/sqli.txt`, `wordlists/xss.txt` (static payloads; built-in fallback).
+- `tests/test_injection.py`: 6 tests (signature matcher, error-based SQLi, clean = no finding, HTML XSS, JSON echo not flagged).
+
+**Verified — Day 8 done-condition met**
+- Live: scanner over all VAmPI endpoints -> exactly 1 finding, HIGH conf 0.9, "SQL injection in path parameter 'username'" on GET /users/v1/{username}, with curl repro + the SQL error as evidence. No false positives.
+- `pytest -q` -> 44 passed.
+
+**Decided** — see BRAIN.md Section 9 (error-based primary, time-based secondary/SQLite-inert, API8 mapping).
+
+**Most likely to break next**
+- D9 `jwt_attacks.py`: needs a real JWT to tamper (from `ScanContext.sessions`); crafting `alg:none` and signature-strip variants and confirming VAmPI *accepts* one (the real weakness) means reading how VAmPI validates the token. `ssrf.py` will likely find nothing on VAmPI (no URL-fetching params) — report that honestly rather than inventing a finding.
+
+**Next** — Day 9: `scanners/ssrf.py` + `scanners/jwt_attacks.py`.

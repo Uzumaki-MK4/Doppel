@@ -262,7 +262,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 ### Week 2 — Baseline scanners (compressed on purpose, do not gold-plate)
 - [x] **D7** `scanners/base.py` ABC + registry. *Done when: a dummy scanner is auto-discovered.* — **DONE 2026-09-12, verified (file-drop discovery; 39 tests pass).**
-- [ ] **D8** `scanners/injection.py` (SQLi + XSS). *Done when: finds VAmPI's known SQLi.*
+- [x] **D8** `scanners/injection.py` (SQLi + XSS). *Done when: finds VAmPI's known SQLi.* — **DONE 2026-09-12, verified (finds SQLi in GET /users/v1/{username}, 1 finding, 0 FP; 44 tests pass).**
 - [ ] **D9** `scanners/ssrf.py` + `scanners/jwt_attacks.py`. *Done when: JWT module flags a real weakness.*
 - [ ] **D10** `scanners/misconfig.py` + `scanners/rate_limit.py`. *Done when: full baseline scan produces a findings list.*
 - [ ] **D11** Dedup, severity, OWASP mapping, evidence capture. *Done when: no dupes, every finding has a curl repro.*
@@ -300,12 +300,15 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 7 — complete and verified. (Week 2, day 1 of 6.)
-**Last session:** 2026-09-12 — Day 7 `scanners/base.py`.
-**Completed:** D1–D7. `scanners/base.py`: `Scanner` ABC (`async run(endpoint) -> list[Finding]`), `ScanContext` (engine/base_url/settings/sessions), `__init_subclass__` auto-registration, `discover_scanners()` (package import so file-drop works), `build_scanners()`. 39 tests pass. Verified file-drop discovery.
+**Current day:** Day 8 — complete and verified. (Week 2, day 2 of 6.)
+**Last session:** 2026-09-12 — Day 8 `scanners/injection.py` + wordlists.
+**Completed:** D1–D8. `scanners/injection.py`: one loop over path/query params; SQLi (error-signature + time-delay), reflected XSS (HTML reflection). `wordlists/{sqli,xss}.txt`. 44 tests pass. Live: finds VAmPI's SQLi in GET /users/v1/{username} (HIGH, conf 0.9), 1 finding, 0 FP.
 **In progress:** nothing.
 **Blocked / broken:** nothing.
-**Next action:** Day 8 — `scanners/injection.py`: SQLi (error-signature + time-delay) and reflected XSS (marked input, check reflection) sharing one injection loop; static wordlists in `wordlists/`. Done when it finds VAmPI's known SQLi. This is the first real scanner and validates the registry end to end; likely also needs the real (non-dry) scan path in `runner.py` that fans endpoints across `build_scanners()` and collects findings.
+**Next action:** Day 9 — `scanners/ssrf.py` (internal ranges, cloud metadata endpoints) + `scanners/jwt_attacks.py` (`alg:none`, signature strip, expired-token replay). Done when the JWT module flags a real weakness on VAmPI. NOTE: VAmPI login returns a JWT (see auth facts); the JWT scanner needs a real token to tamper — pull it from `ScanContext.sessions`. SSRF likely finds nothing on VAmPI (no URL-fetch params); report honestly.
+
+**Still deferred (revisit at D10/D11):**
+- No real (non-dry) `apiguard scan` path yet — the injection scanner was verified by running it directly. D10 ("full baseline scan produces a findings list") should add the scan path in `runner.py` that fans endpoints across `build_scanners()` and collects findings; D11 does dedup/severity/OWASP/evidence.
 
 **Scanner contract (D7):** subclass `Scanner`, set `name` (and `owasp_id`), implement `async def run(self, endpoint) -> list[Finding]`. Construction takes a `ScanContext`. Access the engine via `self.engine` / `self.base_url`. Just adding a file under `apiguard/scanners/` registers it (no CLI edit).
 
@@ -364,6 +367,8 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — Dry-run touches endpoints authenticated as User A and still sends real baseline requests (not a no-network mode) — proves identity is wired into the pipeline; run only against a disposable target (VAmPI). Runner stays target-agnostic (no `/createdb` coupling); reset is the caller's concern.
 - 2026-09-12 — Scanner auto-registration gates on a non-empty `name`, not on abstractness (D7) — `ABCMeta` sets `__abstractmethods__` after `__init_subclass__` runs, so it can't be checked there; abstract intermediates simply leave `name` unset and stay unregistered.
 - 2026-09-12 — Scanners receive a `ScanContext` (engine, base_url, settings, sessions) at construction — keeps `run(endpoint)` to the exact Section-6 contract while giving scanners the engine now and the two user sessions the BOLA engine needs in Week 4. Small seam added deliberately to avoid reworking every scanner later.
+- 2026-09-12 — Injection: error-signature matching is the primary SQLi detector (D8) — flags a SQL error present with the payload but absent in the benign baseline; VAmPI (SQLite/SQLAlchemy) leaks a clear `sqlite3.OperationalError: unrecognized token` on a `'`. Time-based is a secondary check and will NOT fire on SQLite (no SLEEP); kept for other engines/crAPI. XSS requires the marker to reflect unescaped in an HTML content-type, so JSON echoes are not false-flagged.
+- 2026-09-12 — SQLi/XSS mapped to `owasp_id = "API8:2023"` — OWASP API Top 10 2023 has no standalone Injection category (folded into API8 Security Misconfiguration). Documented so it is defensible; revisit at D11 (OWASP mapping).
 
 ---
 
