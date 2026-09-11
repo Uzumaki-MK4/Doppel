@@ -225,3 +225,22 @@ One short entry per working day: what was built, what broke, what was decided.
 - D11: assigning a deterministic `Finding.id` at dedup without breaking the ids scanners already set; deciding the dedup key (scanner + owasp + endpoint + param); confirming every finding still carries a curl repro. Low risk (evidence + curl already present), mostly hardening + the OWASP mapping review.
 
 **Next** — Day 11: dedup, severity, OWASP mapping, evidence capture.
+
+## Day 11 — 2026-09-12 — Findings post-processing (dedup / OWASP / evidence)
+
+**Built**
+- `apiguard/core/findings.py`: OWASP API Top 10 2023 catalog (`owasp_name`, `is_valid_owasp_id`), `DEFAULT_SEVERITY` reference table, `dedupe()` (collapse by id, keep highest severity then confidence), `finalize()` (dedupe + validate curl repro & OWASP id + stable severity sort).
+- `runner.scan()` now finalizes findings before building the `ScanResult`.
+- `cli.py`: findings table gained an OWASP column; sorting delegated to `finalize()`.
+- `tests/test_findings.py`: 7 tests (catalog, dedup by severity/confidence, sort order, evidence + OWASP validation, no-dupes invariant).
+
+**Verified — Day 11 done-condition met**
+- Live: `apiguard scan` -> 5 findings, 5 unique ids (0 dupes), every finding carries a curl repro, all OWASP-mapped (API2/API8/API4).
+- `pytest -q` -> 67 passed.
+
+**Decided** — see BRAIN.md Section 9 (keep descriptive ids as canonical, injection stays API8:2023 documented).
+
+**Most likely to break next**
+- D12 (last of Week 2): the cassette record/replay mechanism. Recording at the httpx transport layer in `http_engine.py` (so a scan can re-run offline) is the real design work; needs a stable request-key (method + url + body) and to not break the live path. Saving `benchmark/results/baseline.json` is straightforward (dump the ScanResult).
+
+**Next** — Day 12: cassettes + `benchmark/results/baseline.json`.

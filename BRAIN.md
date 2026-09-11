@@ -113,6 +113,7 @@ apiguard/
 │   ├── settings.py             pydantic-settings config loader
 │   ├── core/
 │   │   ├── models.py           Finding, Endpoint, Parameter, ScanResult
+│   │   ├── findings.py         dedup + OWASP catalog/mapping + evidence validation
 │   │   ├── spec_parser.py      OpenAPI -> list[Endpoint]
 │   │   ├── http_engine.py      async httpx wrapper, rate limit, retries, cassettes
 │   │   ├── identity.py         two-user session manager
@@ -265,7 +266,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - [x] **D8** `scanners/injection.py` (SQLi + XSS). *Done when: finds VAmPI's known SQLi.* — **DONE 2026-09-12, verified (finds SQLi in GET /users/v1/{username}, 1 finding, 0 FP; 44 tests pass).**
 - [x] **D9** `scanners/ssrf.py` + `scanners/jwt_attacks.py`. *Done when: JWT module flags a real weakness.* — **DONE 2026-09-12, verified (JWT flags weak secret 'random' on VAmPI, CRITICAL; 52 tests pass).**
 - [x] **D10** `scanners/misconfig.py` + `scanners/rate_limit.py`. *Done when: full baseline scan produces a findings list.* — **DONE 2026-09-12, verified (`apiguard scan` -> 5 findings on VAmPI; 60 tests pass).**
-- [ ] **D11** Dedup, severity, OWASP mapping, evidence capture. *Done when: no dupes, every finding has a curl repro.*
+- [x] **D11** Dedup, severity, OWASP mapping, evidence capture. *Done when: no dupes, every finding has a curl repro.* — **DONE 2026-09-12, verified (scan: 5 findings, 0 dupes, all curl+OWASP; 67 tests pass).**
 - [ ] **D12** pytest + respx, first cassettes. *Done when: pytest green, `benchmark/results/baseline.json` saved.*
 
 ### Week 3 — AI layer
@@ -300,12 +301,12 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 10 — complete and verified. (Week 2, day 4 of 6.)
-**Last session:** 2026-09-12 — Day 10 misconfig + rate_limit scanners + real `runner.scan()` + `scan` CLI.
-**Completed:** D1–D10. `scanners/misconfig.py` (missing headers, version disclosure, CORS, verbose errors), `scanners/rate_limit.py` (burst -> 429 check), `runner.scan()` (sequential fan-out across `build_scanners()`), `apiguard scan` renders a findings table. 60 tests pass. Live: `apiguard scan` -> 5 findings on VAmPI (CRITICAL weak JWT secret, HIGH SQLi, 3x LOW), 0 FP, 119 requests.
+**Current day:** Day 11 — complete and verified. (Week 2, day 5 of 6.)
+**Last session:** 2026-09-12 — Day 11 `core/findings.py` (dedup, OWASP, evidence validation).
+**Completed:** D1–D11. `core/findings.py`: OWASP API 2023 catalog + `finalize()` (dedupe by id, validate curl+OWASP, stable severity sort); wired into `runner.scan()`; CLI table has an OWASP column. 67 tests pass. Live: scan -> 5 findings, 0 dupes, all carry curl + valid OWASP id.
 **In progress:** nothing.
 **Blocked / broken:** nothing.
-**Next action:** Day 11 — dedup, severity assignment, OWASP mapping on `Finding`, evidence-capture polish. Done when: no duplicate findings and every finding carries a reproducible curl (already true; verify + harden). Likely: assign deterministic `Finding.id` at dedup (flagged in D2), reconsider the injection `API8:2023` mapping, ensure global findings (missing-headers etc.) can't duplicate if the scan later parallelises.
+**Next action:** Day 12 (LAST of Week 2) — pytest + respx already in place (67 tests). Focus: record the FIRST cassettes (record/replay HTTP for offline demo + fast tests, upgrade 4) and save `benchmark/results/baseline.json` (the static-arm baseline result). Done when: pytest green AND `benchmark/results/baseline.json` saved. Decide the cassette mechanism (httpx transport-level record/replay in `http_engine.py`) and whether to add a `--replay` path now.
 
 **VAmPI JWT facts (Week-4 / report):**
 - Signing secret is the guessable **`random`** (HS256). alg:none and signature-strip are correctly REJECTED. So VAmPI's JWT weakness is the weak secret, not alg confusion. With the secret, tokens can be forged for any user (path to BFLA/account takeover).
@@ -379,6 +380,8 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — `runner.scan()` runs scanners SEQUENTIALLY over endpoints (D10) — scanners hold per-run guards (JWT/rate_limit probe once; misconfig checks globals once), which parallel execution would race; parallelising is a later optimisation, not needed for VAmPI-scale.
 - 2026-09-12 — misconfig runs header/version/CORS checks once (first endpoint) and verbose-error per endpoint — those three are server-global, so one finding each avoids 14 duplicates; global finding ids are fixed strings so dedup (D11) is trivial.
 - 2026-09-12 — rate_limit bursts one no-parameter GET via the shared engine — the engine's own rate limiter paces the burst (documented caveat: a very low configured rate could mask a server limit), but N requests with no 429 still proves VAmPI has no limiting.
+- 2026-09-12 — Kept the scanners' deterministic descriptive `Finding.id` as canonical, dedup by it (D11) — adjusts the D2 note that ids would be content-hashed at dedup; descriptive ids (`injection-sqli-get-...-username`) are already reproducible and read better in tables/reports. `finalize()` also validates curl + OWASP id and sorts stably for reproducible result files.
+- 2026-09-12 — OWASP: injection stays `API8:2023` (Security Misconfiguration), documented in `core/findings.py` — the 2023 list dropped standalone Injection (was API8:2019); nearest current bucket, attack name kept in the title. `DEFAULT_SEVERITY` per category is a reference/floor; scanners set their own severity.
 
 ---
 
