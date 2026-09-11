@@ -94,3 +94,25 @@ One short entry per working day: what was built, what broke, what was decided.
 - D5 `identity.py`: VAmPI's exact register/login flow and token shape. Need to read the actual request/response bodies (username/password/email fields, where the JWT comes back) and confirm two independent users can each hold a token and hit `/me` -> 200. The current example-body placeholders won't satisfy real login; identity needs correct credentials.
 
 **Next** — Day 5: `core/identity.py`.
+
+## Day 5 — 2026-09-12 — Two-user identity manager
+
+**Explored first (live against VAmPI)**
+- Register `POST /users/v1/register` `{username,password,email}`; login `POST /users/v1/login` `{username,password}` -> `{auth_token: <JWT>}`; authed calls need `Authorization: Bearer <JWT>` (raw token rejected by the OpenAPI layer).
+- Real footgun: a JSON POST without `Content-Type` gets 415 from VAmPI. Fixed by adding `HttpEngine.send(json_body=...)`.
+
+**Built**
+- `apiguard/core/identity.py`: `IdentityManager` (register best-effort -> login -> cached `Session` with Bearer headers), `session_for(name)`, and an `AuthFlow` config (VAmPI defaults) so the flow is not hardcoded. Engine injected (shared client).
+- `apiguard/core/http_engine.py`: `send(json_body=...)`.
+- `tests/test_identity.py` (6) + a `json_body` test (1).
+
+**Verified — Day 5 done-condition met**
+- Live: userA (`apiguard_a`) and userB (`apiguard_b`) each authenticate, hold distinct JWTs, and `GET /me` -> 200 returning their own username.
+- `pytest -q` -> 27 passed.
+
+**Decided** — see BRAIN.md Section 9 (AuthFlow config, best-effort register, json_body helper).
+
+**Most likely to break next**
+- D6 `scan --dry-run`: wiring parse + two-user login + touch-every-endpoint into one `rich`-progress command, and deciding where the two default users' credentials come from (a first cut of `settings.py`/config vs CLI flags). Keeping cli.py logic-free (invariant 1) while orchestrating is the design tension — the orchestration likely belongs in a small engine/runner the CLI calls.
+
+**Next** — Day 6: `cli.py scan --dry-run` (closes Week 1).

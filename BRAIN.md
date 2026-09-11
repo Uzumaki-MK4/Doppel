@@ -256,7 +256,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - [x] **D2** `core/models.py`. *Done when: a `Finding` can be built in a REPL and serialized.* — **DONE 2026-09-12, verified (6 tests pass).**
 - [x] **D3** `core/spec_parser.py` incl. `$ref` resolution. *Done when: `apiguard parse <url>` tables every endpoint + params.* — **DONE 2026-09-12, verified (tables 14 VAmPI ops; 12 tests pass).**
 - [x] **D4** `core/http_engine.py`. *Done when: every VAmPI endpoint can be hit and returns a status.* — **DONE 2026-09-12, verified (all 14 VAmPI ops hit; 20 tests pass).**
-- [ ] **D5** `core/identity.py`, two users. *Done when: both users hold valid tokens and can call an authed endpoint.*
+- [x] **D5** `core/identity.py`, two users. *Done when: both users hold valid tokens and can call an authed endpoint.* — **DONE 2026-09-12, verified (userA+userB each GET /me -> 200; 27 tests pass).**
 - [ ] **D6** `cli.py` + rich progress. *Done when: `apiguard scan --dry-run` parses, logs in both users, touches every endpoint.*
 
 ### Week 2 — Baseline scanners (compressed on purpose, do not gold-plate)
@@ -299,15 +299,20 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 4 — complete and verified.
-**Last session:** 2026-09-12 — Day 4 `core/http_engine.py`.
-**Completed:** D1–D4. `core/http_engine.py`: `HttpEngine` (shared `httpx.AsyncClient`, concurrency semaphore, async rate limiter, transport-only retries, `requests_sent` counter) returning `HttpExchange` (response + `Evidence` incl. curl repro). Pure `build_request` (path/query fill, example JSON body) and `build_curl`. 20 tests pass. Live: all 14 VAmPI ops hit (200/401/500), `/createdb` reset OK.
+**Current day:** Day 5 — complete and verified. **Week 1 is one day from done (D6 left).**
+**Last session:** 2026-09-12 — Day 5 `core/identity.py` (+ engine `json_body`).
+**Completed:** D1–D5. `core/identity.py`: `IdentityManager` (register best-effort -> login -> cached `Session` with Bearer headers; `session_for(name)`), auth flow in `AuthFlow` (VAmPI defaults). `HttpEngine.send` gained `json_body`. 27 tests pass. Live: userA+userB each authenticate with distinct JWTs and GET /me -> 200.
 **In progress:** nothing.
 **Blocked / broken:** nothing.
-**Next action:** Day 5 — `core/identity.py`: register + log in two users (User A / User B) against VAmPI, store their bearer tokens, expose `session_for("userA")` (headers/token). Done when both users hold valid tokens and can call an authed endpoint (e.g. `/me` returns 200). This turns the D4 401s into 200s.
+**Next action:** Day 6 — `cli.py` `scan --dry-run`: wire D3–D5 into one command that parses the spec, logs in both users, and touches every endpoint with a `rich` progress bar. Done when `apiguard scan --dry-run` runs end to end. This closes Week 1 (plumbing complete, no detection yet). Decide where the two default users' creds live (a first cut of `settings.py`/config vs CLI flags).
 
-**Observations (not yet findings — revisit when scanners/auth land):**
+**VAmPI auth facts (for Week-4 BOLA):**
+- Register: `POST /users/v1/register` JSON `{username,password,email}`. Login: `POST /users/v1/login` JSON `{username,password}` -> `{auth_token: <JWT>, ...}`. Auth header: `Authorization: Bearer <JWT>` (raw token is rejected by the OpenAPI layer).
+- JSON POSTs MUST send `Content-Type: application/json` or VAmPI returns 415. (Engine `json_body` handles this.)
+
+**Observations (not yet findings — revisit when scanners land):**
 - VAmPI `GET /books/v1` returns **500** when unauthenticated (rather than a clean 401). Real, surfaced by the engine probe.
+- VAmPI `GET /users/v1/{username}` has **no security** — any user record is readable unauthenticated. BOLA-relevant surface for Week 4.
 
 **Known limitations to wire later:**
 - `settings.py` not built yet: scope allowlist is the hardcoded localhost default; non-localhost scanning not yet possible (safe for VAmPI). Wire a configurable allowlist into `load_spec`/engine when settings lands.
@@ -348,6 +353,9 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — `follow_redirects=False` on the engine — a security tool must see the raw 3xx status, not the followed destination.
 - 2026-09-12 — Baseline probes fill params with example-or-type placeholders and synthesize an example JSON body from the schema (D4) — enough to "touch" an endpoint and get a status; real attack payloads are the scanners' job (D8+). Mutating probes are fine against VAmPI (disposable) and we reset via `/createdb`.
 - 2026-09-12 — `requests_sent` counts every attempt incl. retries — this is the ablation's "requests sent" metric (Section 1 table), so it must reflect real network cost.
+- 2026-09-12 — Target auth flow captured in an `AuthFlow` config, not hardcoded (D5) — register/login paths, field names, token key and header format vary per target; VAmPI defaults now, crAPI becomes another `AuthFlow` in Week 4 without touching identity logic.
+- 2026-09-12 — `IdentityManager.authenticate` registers best-effort then logs in — register is idempotent-friendly (re-runs hit an existing user), login is the token source of truth.
+- 2026-09-12 — Added `HttpEngine.send(json_body=...)` after a real 415 in exploration — a raw JSON body without `Content-Type` is rejected by VAmPI; the helper serializes and sets the header so no JSON caller repeats the trap. `IdentityManager` gets the engine injected (one shared client, invariant 8).
 
 ---
 
