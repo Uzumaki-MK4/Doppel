@@ -183,9 +183,20 @@ class HttpEngine:
         headers: dict[str, str] | None = None,
         params: dict[str, str] | None = None,
         body: str | None = None,
+        json_body: Any | None = None,
     ) -> HttpExchange:
-        """Send one request with rate limiting, concurrency cap, and retries."""
+        """Send one request with rate limiting, concurrency cap, and retries.
+
+        Pass `json_body` (a JSON-able value) to serialize it and set
+        `Content-Type: application/json` automatically; or `body` for a raw
+        string body. Not both.
+        """
         req_headers = {**self._default_headers, **(headers or {})}
+        if json_body is not None:
+            if body is not None:
+                raise ValueError("Pass either body or json_body, not both.")
+            body = json.dumps(json_body)
+            req_headers.setdefault("Content-Type", "application/json")
         content = body.encode() if body is not None else None
         last_exc: Exception | None = None
 

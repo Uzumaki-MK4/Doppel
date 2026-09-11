@@ -126,6 +126,24 @@ def test_probe_uses_built_request():
     assert sent_body == '{"username": "test"}'
 
 
+@respx.mock
+def test_send_json_body_sets_content_type():
+    route = respx.post("http://localhost:5000/login").mock(return_value=Response(200))
+
+    async def run():
+        async with HttpEngine(rate_limit_per_s=0) as engine:
+            return await engine.send(
+                "POST", "http://localhost:5000/login", json_body={"u": "a", "p": "b"}
+            )
+
+    ex = asyncio.run(run())
+    assert ex.status == 200
+    sent = route.calls.last.request
+    assert sent.headers["content-type"] == "application/json"
+    assert sent.content.decode() == '{"u": "a", "p": "b"}'
+    assert ex.evidence.request_body == '{"u": "a", "p": "b"}'
+
+
 def test_rate_limiter_spaces_starts():
     async def run():
         rl = _RateLimiter(per_second=20)  # 0.05s min interval
