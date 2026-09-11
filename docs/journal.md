@@ -73,3 +73,24 @@ One short entry per working day: what was built, what broke, what was decided.
 - D4 `http_engine.py`: the shared-`AsyncClient` lifecycle plus rate-limit/concurrency gating. Building a valid request from an `Endpoint` (path-param substitution, auth headers, example bodies) is where VAmPI's real responses will expose gaps. The `Evidence` curl-repro string must exactly reproduce the sent request.
 
 **Next** — Day 4: `core/http_engine.py`.
+
+## Day 4 — 2026-09-12 — Async HTTP engine
+
+**Built**
+- `apiguard/core/http_engine.py`: `HttpEngine` (one shared `httpx.AsyncClient`, concurrency semaphore, async min-interval rate limiter, transport-only retries, `requests_sent` counter) returning `HttpExchange` (raw response + `Evidence` with curl repro). Pure `build_request` (path/query placeholder fill + example JSON body) and `build_curl`.
+- `tests/test_http_engine.py`: 8 tests — request building, example body, curl quoting, evidence capture, transport-error retry, probe, rate-limiter spacing.
+
+**Verified — Day 4 done-condition met**
+- Live probe of all 14 VAmPI operations returned statuses: 200 (public), 401 (authed, no token yet), and one 500. `/createdb` reset -> 200. `requests_sent` = 15 (14 + reset).
+- `pytest -q` -> 20 passed.
+- Sample curl repro reproduces a POST with body verbatim.
+
+**Observed (not a finding yet)**
+- `GET /books/v1` -> 500 unauthenticated instead of a clean 401. Real; surfaced by the probe. Revisit with auth (D5) and misconfig/scanners.
+
+**Decided** — see BRAIN.md Section 9 (transport-only retries, no redirect-follow, placeholder probing, requests_sent counts attempts).
+
+**Most likely to break next**
+- D5 `identity.py`: VAmPI's exact register/login flow and token shape. Need to read the actual request/response bodies (username/password/email fields, where the JWT comes back) and confirm two independent users can each hold a token and hit `/me` -> 200. The current example-body placeholders won't satisfy real login; identity needs correct credentials.
+
+**Next** — Day 5: `core/identity.py`.

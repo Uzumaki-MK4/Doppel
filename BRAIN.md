@@ -255,7 +255,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - [x] **D1** Repo, venv, deps, VAmPI in Docker, Ollama + model pulled. *Done when: `ollama run <model> "hi"` works and VAmPI's spec loads.* — **DONE 2026-09-12, verified.**
 - [x] **D2** `core/models.py`. *Done when: a `Finding` can be built in a REPL and serialized.* — **DONE 2026-09-12, verified (6 tests pass).**
 - [x] **D3** `core/spec_parser.py` incl. `$ref` resolution. *Done when: `apiguard parse <url>` tables every endpoint + params.* — **DONE 2026-09-12, verified (tables 14 VAmPI ops; 12 tests pass).**
-- [ ] **D4** `core/http_engine.py`. *Done when: every VAmPI endpoint can be hit and returns a status.*
+- [x] **D4** `core/http_engine.py`. *Done when: every VAmPI endpoint can be hit and returns a status.* — **DONE 2026-09-12, verified (all 14 VAmPI ops hit; 20 tests pass).**
 - [ ] **D5** `core/identity.py`, two users. *Done when: both users hold valid tokens and can call an authed endpoint.*
 - [ ] **D6** `cli.py` + rich progress. *Done when: `apiguard scan --dry-run` parses, logs in both users, touches every endpoint.*
 
@@ -299,16 +299,21 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 3 — complete and verified.
-**Last session:** 2026-09-12 — Day 3 `core/spec_parser.py` + `core/scope.py` + `cli.py parse`.
-**Completed:** D1 + D2 + D3. `core/spec_parser.py` (async `load_spec` + pure `parse_spec`), `core/scope.py` (invariant-7 guard), `cli.py` (`parse` command). 12 tests pass. `apiguard parse http://localhost:5000/openapi.json` tables 14 VAmPI operations with params/body/security.
+**Current day:** Day 4 — complete and verified.
+**Last session:** 2026-09-12 — Day 4 `core/http_engine.py`.
+**Completed:** D1–D4. `core/http_engine.py`: `HttpEngine` (shared `httpx.AsyncClient`, concurrency semaphore, async rate limiter, transport-only retries, `requests_sent` counter) returning `HttpExchange` (response + `Evidence` incl. curl repro). Pure `build_request` (path/query fill, example JSON body) and `build_curl`. 20 tests pass. Live: all 14 VAmPI ops hit (200/401/500), `/createdb` reset OK.
 **In progress:** nothing.
 **Blocked / broken:** nothing.
-**Next action:** Day 4 — `core/http_engine.py`: one shared `httpx.AsyncClient`, global concurrency limit + rate limit + retries from config, build a request from an `Endpoint`, apply auth headers, capture `Evidence` (incl. curl repro). Done when every VAmPI endpoint can be hit and returns a status. Consider centralizing the one-shot spec fetch (currently its own AsyncClient in `load_spec`) onto the shared client.
+**Next action:** Day 5 — `core/identity.py`: register + log in two users (User A / User B) against VAmPI, store their bearer tokens, expose `session_for("userA")` (headers/token). Done when both users hold valid tokens and can call an authed endpoint (e.g. `/me` returns 200). This turns the D4 401s into 200s.
+
+**Observations (not yet findings — revisit when scanners/auth land):**
+- VAmPI `GET /books/v1` returns **500** when unauthenticated (rather than a clean 401). Real, surfaced by the engine probe.
 
 **Known limitations to wire later:**
-- `settings.py` not built yet: the scope allowlist is the hardcoded localhost default, so non-localhost scanning is not yet possible (safe for VAmPI). When settings lands, make the allowlist configurable and pass it into `load_spec`/the engine.
-- `apiguard` console script is live (points at `cli.py:main`); only `parse` exists. `scan` arrives D6.
+- `settings.py` not built yet: scope allowlist is the hardcoded localhost default; non-localhost scanning not yet possible (safe for VAmPI). Wire a configurable allowlist into `load_spec`/engine when settings lands.
+- `load_spec` still uses its own one-shot `AsyncClient` (bootstrap). Fine, but could route through the shared engine later.
+- Cassette record/replay deferred to D12; auth/session is D5.
+- `apiguard` console script live; only `parse` exists. `scan` arrives D6.
 
 **Environment facts discovered:**
 - GPU / VRAM: NVIDIA RTX 4070, 12 GB (~10.8 GB free). Ollama runs on CUDA (compute 8.9). Integrated Intel UHD 770 is ignored by Ollama.
@@ -339,6 +344,10 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — `core/scope.py` built on D3, ahead of its (unnumbered) slot — the spec fetch is the tool's first outbound request, so invariant 7 must hold now; a real guard, not a stub. Semantics: host must be in the allowlist AND, if non-localhost, carry `--confirm-authorized` (the flag is an extra requirement, never an allowlist bypass).
 - 2026-09-12 — Minimal `cli.py` (`parse` only) on D3, user-approved — the done-condition names `apiguard parse <url>`; cli stays presentation-only, uses a root callback so subcommand style holds with one command, and expands with `scan` on D6.
 - 2026-09-12 — `load_spec` is async (`httpx.AsyncClient`) and the CLI wraps it in `asyncio.run` — honors invariant 8 from the first request.
+- 2026-09-12 — HTTP engine retries transport/timeout errors only, never HTTP statuses (D4) — a 401/500 is a real answer the scanners must see, not a failure; retrying it would corrupt evidence and inflate request counts.
+- 2026-09-12 — `follow_redirects=False` on the engine — a security tool must see the raw 3xx status, not the followed destination.
+- 2026-09-12 — Baseline probes fill params with example-or-type placeholders and synthesize an example JSON body from the schema (D4) — enough to "touch" an endpoint and get a status; real attack payloads are the scanners' job (D8+). Mutating probes are fine against VAmPI (disposable) and we reset via `/createdb`.
+- 2026-09-12 — `requests_sent` counts every attempt incl. retries — this is the ablation's "requests sent" metric (Section 1 table), so it must reflect real network cost.
 
 ---
 
