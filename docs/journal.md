@@ -28,3 +28,23 @@ One short entry per working day: what was built, what broke, what was decided.
 **Decided** — see BRAIN.md Section 9 (think=False, `[dev]` extra, model lock).
 
 **Next** — Day 2: `core/models.py`.
+
+## Day 2 — 2026-09-12 — Core data models
+
+**Built**
+- `apiguard/core/models.py`: `Severity` (StrEnum), `Parameter`, `Endpoint`, `Evidence`, `AITrace`, `Finding`, `ScanResult` — all pydantic v2, per BRAIN.md Section 5.
+- `tests/test_models.py`: 6 tests — Finding round-trip, confidence bounds, `extra=forbid`, severity-as-string, AITrace optional/attaches, ScanResult counts + round-trip.
+
+**Verified — Day 2 done-condition met**
+- `pytest -q` -> 6 passed.
+- A `Finding` builds in a REPL and `model_dump_json()` returns clean JSON.
+
+**Decided** (see BRAIN.md Section 9)
+- `ScanResult` shape (self-describing: model/seed/payload_mode/requests_sent) — not defined in Section 5.
+- `Finding.id` required, no auto-uuid — deterministic IDs assigned at dedup (D11).
+- `extra="forbid"` on all models; `confidence` bounded `[0,1]`.
+
+**Most likely to break next**
+- `$ref` resolution in D3. VAmPI's spec is small, but the resolver's output shape (fully-dereferenced dict) must map cleanly onto `Parameter`/`Endpoint`. `request_body_schema` stays a raw dict by design, so that part is low-risk.
+
+**Next** — Day 3: `core/spec_parser.py`.

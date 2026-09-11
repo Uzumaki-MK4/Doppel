@@ -253,7 +253,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 ### Week 1 — Foundation
 - [x] **D1** Repo, venv, deps, VAmPI in Docker, Ollama + model pulled. *Done when: `ollama run <model> "hi"` works and VAmPI's spec loads.* — **DONE 2026-09-12, verified.**
-- [ ] **D2** `core/models.py`. *Done when: a `Finding` can be built in a REPL and serialized.*
+- [x] **D2** `core/models.py`. *Done when: a `Finding` can be built in a REPL and serialized.* — **DONE 2026-09-12, verified (6 tests pass).**
 - [ ] **D3** `core/spec_parser.py` incl. `$ref` resolution. *Done when: `apiguard parse <url>` tables every endpoint + params.*
 - [ ] **D4** `core/http_engine.py`. *Done when: every VAmPI endpoint can be hit and returns a status.*
 - [ ] **D5** `core/identity.py`, two users. *Done when: both users hold valid tokens and can call an authed endpoint.*
@@ -299,12 +299,12 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 1 — complete and verified.
-**Last session:** 2026-09-12 — Day 1 environment + repo skeleton.
-**Completed:** D1. Python 3.11.9 venv with the full Section 3 stack installed (editable). Repo skeleton, `pyproject.toml`, `config.example.yaml`, `.gitignore`, `README.md` committed (`git init`, branch `main`). VAmPI running in Docker; spec verified. qwen3:8b pulled and verified through a schema-constrained call.
+**Current day:** Day 2 — complete and verified.
+**Last session:** 2026-09-12 — Day 2 `core/models.py` + tests.
+**Completed:** D1 + D2. `core/models.py` holds all Section 5 models plus `ScanResult`. `tests/test_models.py` has 6 passing tests (round-trip, confidence bounds, extra=forbid, severity string, AITrace optional, ScanResult counts). Verified: `pytest -q` green; a `Finding` builds and serializes in a REPL.
 **In progress:** nothing.
 **Blocked / broken:** nothing.
-**Next action:** Day 2 — write `core/models.py` (Severity, Parameter, Endpoint, Evidence, AITrace, Finding, ScanResult as pydantic v2 models per Section 5). Done when a `Finding` builds in a REPL and `.model_dump_json()` works.
+**Next action:** Day 3 — `core/spec_parser.py`: parse VAmPI's `/openapi.json` into `list[Endpoint]` incl. `$ref` resolution (use `openapi-spec-validator`, do NOT hand-roll), path/query/body params, security schemes. Done when `apiguard parse <url>` tables every endpoint + params. Note: `apiguard` console script isn't live until D6, so D3 may expose the parser via a temporary CLI hook or a direct function test — decide at D3 start.
 
 **Environment facts discovered:**
 - GPU / VRAM: NVIDIA RTX 4070, 12 GB (~10.8 GB free). Ollama runs on CUDA (compute 8.9). Integrated Intel UHD 770 is ignored by Ollama.
@@ -328,6 +328,9 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — LLM called with `think=False` + `format=<schema>`, not the inline `/no_think` token — qwen3:8b thinks by default and the CLI ignores the inline token; the API `think` flag is the reliable off switch and keeps oracle output deterministic and clean.
 - 2026-09-12 — `pytest`+`respx` declared as a `[dev]` optional-dependencies extra, not runtime deps — same libraries as Section 3, only test-scoped; install with `pip install -e ".[dev]"`. Runtime install stays minimal.
 - 2026-09-12 — Locked `qwen3:8b` on an RTX 4070 (12 GB) — measured hardware puts us in the recommended tier with headroom; matches Section 3 default.
+- 2026-09-12 — `ScanResult` (Section 5 named it but didn't define it) made self-describing: embeds run `model`, `seed`, `payload_mode`, `requests_sent` — so each saved result file attributes to one ablation arm without external context (feeds Week-5 table).
+- 2026-09-12 — `Finding.id` is required, no auto-uuid default — IDs are assigned deliberately at dedup (D11), ideally from a content hash, to keep re-runs reproducible; a random uuid per run would undercut invariant 3.
+- 2026-09-12 — All models set `extra="forbid"` and `Finding.confidence` is bounded `[0,1]` — a mistyped field is a loud error, and a computed confidence cannot silently leave range.
 
 ---
 
