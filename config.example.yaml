@@ -28,9 +28,13 @@ http:
 # Do NOT commit real passwords. Set them in config.yaml or via environment.
 users:
   userA:
-    username: userA
+    username: apiguard_a
+    password: PwA_12345
+    email: a@apiguard.test
   userB:
-    username: userB
+    username: apiguard_b
+    password: PwB_67890
+    email: b@apiguard.test
 
 # --- Confidence signal weights (scoring/confidence.py — BRAIN.md Section 5) ---
 # Placeholders that sum to 1.0. Confidence is COMPUTED from these signals,

@@ -11,11 +11,14 @@ import asyncio
 
 import typer
 from rich.console import Console
+from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
 from rich.table import Table
 
-from apiguard.core.models import Endpoint
+from apiguard import runner
+from apiguard.core.models import Endpoint, ScanResult
 from apiguard.core.scope import ScopeError
 from apiguard.core.spec_parser import load_spec, parse_spec
+from apiguard.settings import load_settings
 
 app = typer.Typer(
     add_completion=False,
@@ -81,6 +84,73 @@ def _render(endpoints: list[Endpoint], source: str) -> None:
 
     console.print(table)
     console.print(f"[bold]{len(endpoints)}[/bold] endpoints parsed.")
+
+
+@app.command()
+def scan(
+    spec: str = typer.Option(..., "--spec", help="OpenAPI spec URL or file path."),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Run the full pipeline without vulnerability scanners."
+    ),
+    confirm_authorized: bool = typer.Option(
+        False, "--confirm-authorized", help="Authorize a non-localhost target (invariant 7)."
+    ),
+    config: str = typer.Option(
+        "config.yaml", "--config", help="Config YAML path (defaults are used if absent)."
+    ),
+) -> None:
+    """Scan an API. Currently only --dry-run is implemented (scanners: Week 2)."""
+    settings = load_settings(config)
+    if not dry_run:
+        console.print(
+            "[yellow]Only --dry-run is implemented so far. Re-run with --dry-run.[/yellow]"
+        )
+        raise typer.Exit(code=1)
+    try:
+        result = _run_dry_run(spec, settings, confirm_authorized)
+    except ScopeError as exc:
+        console.print(f"[bold red]Scope refused:[/bold red] {exc}")
+        raise typer.Exit(code=2) from None
+    except Exception as exc:  # network / auth / spec errors, at the CLI boundary
+        console.print(f"[bold red]Scan failed[/bold red] ({spec}): {exc}")
+        raise typer.Exit(code=1) from None
+    _render_scan_summary(result)
+
+
+def _run_dry_run(spec: str, settings, confirm_authorized: bool) -> ScanResult:
+    with Progress(
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("{task.completed}/{task.total}"),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        state: dict[str, object] = {"task": None}
+
+        def on_progress(index: int, total: int, description: str) -> None:
+            if state["task"] is None:
+                state["task"] = progress.add_task("Touching endpoints", total=total)
+            progress.update(state["task"], completed=index, description=f"Touching {description}")
+
+        return asyncio.run(
+            runner.dry_run(
+                spec, settings, confirm_authorized=confirm_authorized, on_progress=on_progress
+            )
+        )
+
+
+def _render_scan_summary(result: ScanResult) -> None:
+    table = Table(title="Dry-run summary")
+    table.add_column("Field", style="cyan")
+    table.add_column("Value", style="white")
+    table.add_row("target", result.target)
+    table.add_row("spec", result.spec_url)
+    table.add_row("model / seed", f"{result.model} / {result.seed}")
+    table.add_row("endpoints touched", str(len(result.endpoints)))
+    table.add_row("requests sent", str(result.requests_sent))
+    table.add_row("findings", str(len(result.findings)))
+    console.print(table)
+    console.print("[green]Dry-run complete. Week 1 plumbing works end to end.[/green]")
 
 
 def main() -> None:
