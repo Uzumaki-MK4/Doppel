@@ -267,7 +267,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - [x] **D9** `scanners/ssrf.py` + `scanners/jwt_attacks.py`. *Done when: JWT module flags a real weakness.* — **DONE 2026-09-12, verified (JWT flags weak secret 'random' on VAmPI, CRITICAL; 52 tests pass).**
 - [x] **D10** `scanners/misconfig.py` + `scanners/rate_limit.py`. *Done when: full baseline scan produces a findings list.* — **DONE 2026-09-12, verified (`apiguard scan` -> 5 findings on VAmPI; 60 tests pass).**
 - [x] **D11** Dedup, severity, OWASP mapping, evidence capture. *Done when: no dupes, every finding has a curl repro.* — **DONE 2026-09-12, verified (scan: 5 findings, 0 dupes, all curl+OWASP; 67 tests pass).**
-- [ ] **D12** pytest + respx, first cassettes. *Done when: pytest green, `benchmark/results/baseline.json` saved.*
+- [x] **D12** pytest + respx, first cassettes. *Done when: pytest green, `benchmark/results/baseline.json` saved.* — **DONE 2026-09-12, verified (69 tests; baseline.json saved; offline replay reproduces 5 findings with VAmPI stopped). WEEK 2 COMPLETE.**
 
 ### Week 3 — AI layer
 - [ ] **D13** `ai/client.py` with schema enforcement + retry + logging. *Done when: 20/20 calls return valid objects.*
@@ -301,12 +301,16 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 11 — complete and verified. (Week 2, day 5 of 6.)
-**Last session:** 2026-09-12 — Day 11 `core/findings.py` (dedup, OWASP, evidence validation).
-**Completed:** D1–D11. `core/findings.py`: OWASP API 2023 catalog + `finalize()` (dedupe by id, validate curl+OWASP, stable severity sort); wired into `runner.scan()`; CLI table has an OWASP column. 67 tests pass. Live: scan -> 5 findings, 0 dupes, all carry curl + valid OWASP id.
-**In progress:** nothing.
+**Current day:** Day 12 — complete and verified. **WEEK 2 COMPLETE.** (Next: Week 3, AI layer.)
+**Last session:** 2026-09-12 — Day 12 cassettes (record/replay) + `benchmark/results/baseline.json`.
+**Completed:** D1–D12 (all of Weeks 1-2). `http_engine.py` gained a `Cassette` (record/replay keyed by method+url+body+significant headers); `runner.scan()` supports `--record`/`--replay` (spec fetch routed through the engine so replay is fully offline); `apiguard scan --out` saves the ScanResult. 69 tests pass. `benchmark/results/baseline.json` = the static-arm baseline (5 findings, 120 requests). Offline replay reproduces all 5 findings with VAmPI STOPPED.
+**In progress:** nothing (an adversarial review workflow found 10 issues in the cassette code; the real ones are fixed — see Section 9 — and re-verified: 71 tests, offline replay still reproduces 5 findings).
 **Blocked / broken:** nothing.
-**Next action:** Day 12 (LAST of Week 2) — pytest + respx already in place (67 tests). Focus: record the FIRST cassettes (record/replay HTTP for offline demo + fast tests, upgrade 4) and save `benchmark/results/baseline.json` (the static-arm baseline result). Done when: pytest green AND `benchmark/results/baseline.json` saved. Decide the cassette mechanism (httpx transport-level record/replay in `http_engine.py`) and whether to add a `--replay` path now.
+**Next action:** Day 13 (Week 3) — `ai/client.py`: Ollama wrapper with schema-enforced output (`format`=pydantic schema), `think=False`, pinned `seed`, temperature control, retry-on-invalid-JSON (<=2), log every prompt+response to `logs/llm/`. Done when: 20/20 structured calls return valid objects. Model qwen3:8b is pulled; the D1 smoke proved the pattern (`format` + `think=False` -> clean JSON). Never regex LLM text (invariant 2).
+
+**Cassette facts:**
+- `cassettes/vampi/cassette.json` (~120 interactions, meta.spec_source) replays the whole VAmPI scan offline: `apiguard scan --replay cassettes/vampi` (no --spec, no live target). Re-record with `--record cassettes/vampi` after behavior changes.
+- Replay is deterministic ONLY because scanners avoid wall-clock in request content (fixed the JWT expired-token to derive from the token's own iat). Any new time/random in a request path will break replay — keep requests reproducible.
 
 **VAmPI JWT facts (Week-4 / report):**
 - Signing secret is the guessable **`random`** (HS256). alg:none and signature-strip are correctly REJECTED. So VAmPI's JWT weakness is the weak secret, not alg confusion. With the secret, tokens can be forged for any user (path to BFLA/account takeover).
@@ -382,6 +386,10 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — rate_limit bursts one no-parameter GET via the shared engine — the engine's own rate limiter paces the burst (documented caveat: a very low configured rate could mask a server limit), but N requests with no 429 still proves VAmPI has no limiting.
 - 2026-09-12 — Kept the scanners' deterministic descriptive `Finding.id` as canonical, dedup by it (D11) — adjusts the D2 note that ids would be content-hashed at dedup; descriptive ids (`injection-sqli-get-...-username`) are already reproducible and read better in tables/reports. `finalize()` also validates curl + OWASP id and sorts stably for reproducible result files.
 - 2026-09-12 — OWASP: injection stays `API8:2023` (Security Misconfiguration), documented in `core/findings.py` — the 2023 list dropped standalone Injection (was API8:2019); nearest current bucket, attack name kept in the title. `DEFAULT_SEVERITY` per category is a reference/floor; scanners set their own severity.
+- 2026-09-12 — Cassette key = method + final url + body + significant headers (authorization, origin, content-type) (D12) — keying on url+body alone collided the JWT scanner's forged-token requests (they vary only Authorization) and the CORS check (varies only Origin); found live via a replay miss.
+- 2026-09-12 — JWT expired-token forge is derived from the token's own `iat` shifted into the past, not `time.time()` (D12) — wall-clock made the forged token differ between record and replay (cassette miss) and violated reproducibility; now deterministic.
+- 2026-09-12 — Replay routes the spec fetch through the engine and stores `meta.spec_source` in the cassette — so `--replay <dir>` re-runs the entire scan (spec + auth + scanners) offline with no `--spec` and no live target. Proven by replaying with the VAmPI container stopped.
+- 2026-09-12 — D12 cassette hardened after an adversarial review workflow (10 confirmed issues): each key now maps to an ORDERED LIST of responses (repeated identical requests like the rate-limit burst replay faithfully, not last-write-wins); Content-Encoding/Length stripped on replay (a stored gzip header would crash httpx re-decoding the already-decoded body); `--record`+`--replay` and `--dry-run`+cassette are rejected; `load_spec` engine path checks HTTP status. Documented live-only limits: cassettes capture responses, NOT timing (time-based SQLi is live-only, won't fire on replay) and non-UTF-8 bodies may not round-trip exactly.
 
 ---
 

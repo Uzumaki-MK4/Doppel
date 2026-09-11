@@ -244,3 +244,30 @@ One short entry per working day: what was built, what broke, what was decided.
 - D12 (last of Week 2): the cassette record/replay mechanism. Recording at the httpx transport layer in `http_engine.py` (so a scan can re-run offline) is the real design work; needs a stable request-key (method + url + body) and to not break the live path. Saving `benchmark/results/baseline.json` is straightforward (dump the ScanResult).
 
 **Next** — Day 12: cassettes + `benchmark/results/baseline.json`.
+
+## Day 12 — 2026-09-12 — Cassettes + baseline.json (WEEK 2 DONE)
+
+**Built**
+- `apiguard/core/http_engine.py`: `Cassette` (record/replay) + `CassetteMiss`; `HttpEngine(cassette=...)`; key = method + final url + body + significant headers (authorization/origin/content-type). Replay returns stored responses with no network; a miss raises.
+- `apiguard/core/spec_parser.py`: `load_spec(engine=...)` routes the spec fetch through the engine so replay is fully offline.
+- `apiguard/runner.py`: `scan(record_dir=, replay_dir=)` builds/saves the cassette; stores `meta.spec_source`.
+- `apiguard/cli.py`: `apiguard scan --record DIR --replay DIR --out FILE` (replay needs no --spec).
+- `tests/test_cassette.py`: 2 tests (record->replay offline using an unreachable port; miss raises).
+
+**Broke, then fixed (found live)**
+- First replay hit a `CassetteMiss`: (1) the key ignored headers, colliding the JWT scanner's forged-token requests -> added significant headers to the key; (2) the JWT expired-token used `time.time()`, so it differed between record and replay -> made it derive from the token's own `iat`. Both are reproducibility fixes.
+
+**Verified — Day 12 done-condition met; WEEK 2 COMPLETE**
+- `pytest -q` -> 69 passed.
+- `benchmark/results/baseline.json` saved (static arm: 5 findings, 120 requests, 14 endpoints).
+- Recorded `cassettes/vampi/`; with the VAmPI container STOPPED, `apiguard scan --replay cassettes/vampi` reproduced the identical 5 findings (offline).
+- (Ultracode) ran a background adversarial review workflow over the cassette code.
+- Review confirmed 10 issues; fixed the real ones (ordered per-key replay for the rate-limit burst; strip Content-Encoding on replay; reject bad flag combos; spec-fetch status check; deterministic JWT expired token) and documented the live-only limits (timing, non-UTF-8). Re-verified: 71 tests; offline replay still reproduces 5 findings.
+
+**Week 2 retro**
+- Five baseline scanners (injection, ssrf, jwt, misconfig, rate_limit) + a real `scan` + findings post-processing + cassettes. On VAmPI: 5 real findings, 0 FP. This is the control group for the Week-5 ablation.
+
+**Most likely to break next**
+- D13 `ai/client.py`: first real Ollama integration in the engine. Schema-enforced JSON (`format`) + `think=False` + pinned seed + retry-on-invalid-JSON, logging to `logs/llm/`. Risk: qwen3 latency, occasional invalid JSON despite `format`, and the 20/20 reliability bar. The D1 smoke already proved the core pattern works on this machine.
+
+**Next** — Day 13 (Week 3): `ai/client.py`.
