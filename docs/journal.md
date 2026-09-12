@@ -331,5 +331,28 @@ One short entry per working day: what was built, what broke, what was decided.
 
 **Next** — Day 16: `ai/repair.py`.
 
+## Day 16 — 2026-09-12 — Self-repair loop
+
+**Explored first (live)**
+- VAmPI (connexion) returns descriptive 400s: missing required field ("'email' is a required property"), wrong type ("123 is not of type 'string'"), non-object body. These are the rejections repair can fix.
+
+**Built**
+- `apiguard/ai/repair.py`: `RepairLoop.repair_value(send, initial_value, context, error_body, attack_goal)` — feeds the server's error back to the model (versioned repair prompt), gets a corrected value, re-sends via the caller's `send` callback, loops up to 2; never raises. `RepairResult` carries the final exchange + history.
+- `apiguard/ai/prompts.py`: `REPAIR_SYSTEM`, `RepairedPayload`, `repair_user_prompt`; `PROMPTS_VERSION` bumped.
+- `ScanContext.repair_loop`; runner builds it for ai/both; injection scanner `_send_payload` repairs a 400/422'd payload then re-probes (detection runs on the repaired response).
+- `tests/test_repair.py`: 3 (repair succeeds on retry, gives up after cap, injection repairs a rejected payload then detects).
+
+**Verified — Day 16 done-condition met**
+- Live: register body `{username,password}` (missing required `email`) -> HTTP 400; repair added `email` and re-sent -> HTTP 200 on the first retry; logged to `logs/llm/0001-repair.json`.
+- `pytest -q` -> 87 passed.
+
+**Decided** — see BRAIN.md Section 9 (send-callback decoupling, cap 2, repair payoff is typed/validated APIs).
+
+**Most likely to break next**
+- D17 measurement: on VAmPI `ai` and `ai+repair` will likely be IDENTICAL (repair doesn't fire on string injectable params), so the three arms won't all differ by finding count. Need a `--repair/--no-repair` toggle to isolate the arm, and the honest three-way story is static(5) vs ai(4) vs ai+repair(=ai on VAmPI) plus requests_sent. Do NOT fake a repair delta on VAmPI.
+
+**Next** — Day 17: first measurement (static / ai / ai+repair result JSONs).
+
+
 
 

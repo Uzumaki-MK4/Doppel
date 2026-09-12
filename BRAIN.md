@@ -273,7 +273,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - [x] **D13** `ai/client.py` with schema enforcement + retry + logging. *Done when: 20/20 calls return valid objects.* — **DONE 2026-09-12, verified (20/20 valid from qwen3:8b in ~14s; 76 tests pass).**
 - [x] **D14** `ai/prompts.py` payload prompt with full parameter context. *Done when: an email-format field yields email-shaped candidates.* — **DONE 2026-09-12, verified (email field -> email-shaped payloads; plain field -> generic; 80 tests pass).**
 - [x] **D15** `ai/payload_gen.py` wired in behind `--payloads {static,ai,both}`. *Done when: `--payloads ai` runs end to end.* — **DONE 2026-09-12, verified (`--payloads ai` runs, 4 findings; 84 tests pass). See the AI-misses-SQLi observation below.**
-- [ ] **D16** `ai/repair.py` self-repair loop, max 2 retries. *Done when: a 400-rejected payload succeeds on retry, with logs.*
+- [x] **D16** `ai/repair.py` self-repair loop, max 2 retries. *Done when: a 400-rejected payload succeeds on retry, with logs.* — **DONE 2026-09-12, verified (register body missing 'email' 400 -> repaired -> 200 on first retry, logged; 87 tests pass).**
 - [ ] **D17** First measurement: static vs ai vs ai+repair on VAmPI. *Done when: three result JSONs with different numbers.*
 - [ ] **D18** Buffer + prompt tuning. *Done when: AI arm beats static on at least one measure.*
 
@@ -301,12 +301,12 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 15 — complete and verified. (Week 3, day 3 of 6.)
-**Last session:** 2026-09-12 — Day 15 `ai/payload_gen.py` + `--payloads {static,ai,both}` wiring.
-**Completed:** D1–D15. `ai/payload_gen.py` (`PayloadGenerator.for_parameter`, cached/graceful); `ScanContext.payload_mode`/`payload_generator`; injection picks payloads per param by mode; `runner.scan` builds the generator (degrades to static if Ollama down); `cli` `--payloads` flag + effective mode in summary. 84 tests pass. Live: `--payloads ai` runs end to end.
+**Current day:** Day 16 — complete and verified. (Week 3, day 4 of 6.)
+**Last session:** 2026-09-12 — Day 16 `ai/repair.py` (self-repair loop).
+**Completed:** D1–D16. `ai/repair.py`: `RepairLoop.repair_value()` (on 400/422, model-corrected value via a `send` callback, cap 2, never raises). `prompts.py` repair prompt (version bumped). `ScanContext.repair_loop`; runner builds it for ai/both; injection repairs a rejected AI payload then re-probes. 87 tests pass. Live: register body missing 'email' 400 -> repaired -> 200 on first retry, logged.
 **In progress:** nothing.
 **Blocked / broken:** nothing.
-**Next action:** Day 16 — `ai/repair.py`: self-repair loop. On a 400/422 rejection, feed the error body back to the model, get a corrected payload, retry (cap 2). Done when: a payload initially rejected by input validation succeeds on retry, with logs. This directly helps the AI arm (its format-tailored payloads that still fail validation get repaired). Wire into the injection scanner's AI path.
+**Next action:** Day 17 — FIRST measurement. Run three scans on VAmPI (static, ai, ai+repair) and save three JSONs to `benchmark/results/`. Done when: three result JSONs exist with different numbers. **IMPORTANT nuance:** repair does NOT fire on VAmPI's injectable params (string path/query never 400), so `ai` and `ai+repair` will likely be IDENTICAL on VAmPI — the honest three-way difference must come from static-vs-ai (5 vs 4 findings) and requests_sent. Need a `--repair/--no-repair` toggle to isolate the repair arm (repair is currently always-on for ai/both). Record real numbers; do NOT fake a repair difference on VAmPI (repair's payoff is on typed/validated APIs = crAPI, Week 4).
 
 **!!! KEY OBSERVATION for D17/D18 (ablation narrative) — do NOT lose this:**
 - On VAmPI the AI arm (`--payloads ai`) found **4** findings vs the static arm's **5**: it MISSED the SQLi. qwen3 generated a boolean-based `name1' OR '1'='1` (VAmPI returns 200, NO SQL error) with low diversity (4 identical), and our injection detector is error-signature-only, so it misses boolean-based SQLi. Two fixes available at D18: (a) tune the payload prompt for diversity + include an error-inducing bare-quote; (b) add boolean-based SQLi detection (true-vs-false response differential) to the injection scanner. This is ALSO the thesis in miniature: a 200-OK boolean SQLi is invisible to error/status detection — exactly why the Week-4 semantic oracle matters. AI arm currently wins only on requests (79 vs 120). D18 must make AI beat static on a real measure. NEVER fabricate an AI win; report the real numbers.
@@ -405,6 +405,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — Payload prompt tailors to the declared type/format, not a generic wordlist (D14) — verified live (email field -> email-shaped payloads with the attack in the local part; plain field -> generic). This format-tailoring is the AI arm's intended edge over static payloads and the thing the ablation should show. `PROMPTS_VERSION` is bumped on any prompt change so results cite the exact prompt. Low payload diversity at temp 0.8 is a known D18 tuning item.
 - 2026-09-12 — `--payloads {static,ai,both}` threaded cli -> runner -> ScanContext -> injection (D15); ai/both build a cached `PayloadGenerator`, and the runner DEGRADES to static (recording effective mode) if Ollama is unreachable so a scan still runs with Ollama off (invariant 4). AI scans are NOT offline-`--replay`able (Ollama traffic isn't cassetted) — documented limitation.
 - 2026-09-12 — Injection's error-signature SQLi detector misses BOOLEAN-based SQLi (e.g. `' OR '1'='1` -> 200 with data, no error). Surfaced because the AI arm generated exactly that and missed VAmPI's SQLi. Candidate D18 fix: add true-vs-false response-differential detection. This is the project thesis in miniature (200-OK injection invisible to status/error detection).
+- 2026-09-12 — Self-repair loop is decoupled via a `send` callback (D16) — the same `RepairLoop.repair_value` repairs an injection parameter payload (re-probe) and a whole request body (re-POST); it feeds the server's 400/422 error text back to the model and caps at 2 retries, never raising. Repair is built only for ai/both (shares the OllamaClient) and wired into the injection scanner's probe. On VAmPI it won't fire during injection (string params don't 400); its payoff is typed/validated fields (crAPI).
 
 ---
 
