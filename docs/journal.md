@@ -353,6 +353,34 @@ One short entry per working day: what was built, what broke, what was decided.
 
 **Next** — Day 17: first measurement (static / ai / ai+repair result JSONs).
 
+## Day 17 — 2026-09-12 — First ablation measurement (static / ai / ai+repair)
+
+**Built**
+- `--repair/--no-repair` toggle (cli + `runner.scan(repair_enabled=)`) so the repair arm can be isolated.
+- Saved three arm results: `benchmark/results/{static,ai,ai_repair}.json`.
+
+**Measurement (VAmPI, this session)**
+
+| arm | findings | SQLi | requests |
+|-----|----------|------|----------|
+| static | 5 | yes | 120 |
+| ai | 5 | yes | 87 |
+| ai+repair | 5 | yes | 100 |
+
+- SAME recall across arms (all find the 5 vulns incl. the SQLi). The difference is REQUEST COST: the AI arm is ~28% leaner; repair added ~13 requests with no new findings on VAmPI.
+- The AI arm finds the SQLi via `name1'; DROP TABLE users--` (trips VAmPI's 'one statement at a time' error).
+
+**Reproducibility finding (important, honest)**
+- qwen3 payloads are deterministic WITHIN a session (4/4 identical runs verified) but DRIFTED across sessions: D15 the AI arm found 4 (boolean-only payloads) vs 5 now. Ollama `seed` = within-session determinism, not cross-session. We pass seed (invariant 3), record model/seed in each ScanResult, and save the arm JSONs as the canonical numbers. AI scans aren't cleanly cassette-replayable.
+
+**Decided** — see BRAIN.md Section 9 (same-recall/diff-requests outcome; within-session determinism caveat).
+
+**Most likely to break next**
+- D18 "AI beats static on at least one measure" is arguably already satisfied (same recall, fewer requests). D18 plan: write up the why; optionally add boolean-based SQLi detection (response differential) to strengthen detection and reduce reliance on the model happening to emit an error-triggering payload; tune payload diversity.
+
+**Next** — Day 18: buffer + prompt tuning / detection hardening.
+
+
 
 
 
