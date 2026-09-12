@@ -97,6 +97,7 @@ async def scan(
     base_url: str | None = None,
     confirm_authorized: bool = False,
     payload_mode: str = "static",
+    repair_enabled: bool = True,
     record_dir: str | None = None,
     replay_dir: str | None = None,
     on_progress: ProgressCb | None = None,
@@ -127,7 +128,8 @@ async def scan(
         ai_client = OllamaClient.from_settings(settings)
         if await ai_client.available():
             generator = PayloadGenerator(ai_client, temperature=settings.temperature_payload)
-            repair_loop = RepairLoop(ai_client, temperature=settings.temperature_payload)
+            if repair_enabled:
+                repair_loop = RepairLoop(ai_client, temperature=settings.temperature_payload)
         else:
             effective_mode = "static"
 

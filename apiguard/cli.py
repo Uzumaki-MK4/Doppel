@@ -105,6 +105,9 @@ def scan(
     payloads: str = typer.Option(
         "static", "--payloads", help="Payload source: static | ai | both."
     ),
+    repair: bool = typer.Option(
+        True, "--repair/--no-repair", help="Self-repair of validation-rejected payloads (ai/both)."
+    ),
     record: str = typer.Option(
         None, "--record", help="Record all HTTP into this cassette directory."
     ),
@@ -142,7 +145,7 @@ def scan(
         if dry_run:
             result = _run_dry_run(spec, settings, confirm_authorized)
         else:
-            result = _run_scan(spec, settings, confirm_authorized, record, replay, payloads)
+            result = _run_scan(spec, settings, confirm_authorized, record, replay, payloads, repair)
     except ScopeError as exc:
         console.print(f"[bold red]Scope refused:[/bold red] {exc}")
         raise typer.Exit(code=2) from None
@@ -210,6 +213,7 @@ def _run_scan(
     record_dir: str | None = None,
     replay_dir: str | None = None,
     payload_mode: str = "static",
+    repair_enabled: bool = True,
 ) -> ScanResult:
     with Progress(
         TextColumn("[progress.description]{task.description}"),
@@ -231,6 +235,7 @@ def _run_scan(
                 settings,
                 confirm_authorized=confirm_authorized,
                 payload_mode=payload_mode,
+                repair_enabled=repair_enabled,
                 record_dir=record_dir,
                 replay_dir=replay_dir,
                 on_progress=on_progress,
