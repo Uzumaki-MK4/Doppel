@@ -275,7 +275,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - [x] **D15** `ai/payload_gen.py` wired in behind `--payloads {static,ai,both}`. *Done when: `--payloads ai` runs end to end.* — **DONE 2026-09-12, verified (`--payloads ai` runs, 4 findings; 84 tests pass). See the AI-misses-SQLi observation below.**
 - [x] **D16** `ai/repair.py` self-repair loop, max 2 retries. *Done when: a 400-rejected payload succeeds on retry, with logs.* — **DONE 2026-09-12, verified (register body missing 'email' 400 -> repaired -> 200 on first retry, logged; 87 tests pass).**
 - [x] **D17** First measurement: static vs ai vs ai+repair on VAmPI. *Done when: three result JSONs with different numbers.* — **DONE 2026-09-12: three JSONs saved; arms differ on requests_sent (120/87/100). HONEST caveat: finding COUNTS are equal (5/5/5 — same recall on VAmPI); difference is request cost, not recall.**
-- [ ] **D18** Buffer + prompt tuning. *Done when: AI arm beats static on at least one measure.*
+- [x] **D18** Buffer + prompt tuning. *Done when: AI arm beats static on at least one measure.* — **DONE 2026-09-12, verified (AI 5 findings/93 req vs static 5/128 = same recall, ~27% fewer requests; +boolean SQLi detector; fixed an XSS false positive; 90 tests). WEEK 3 COMPLETE.**
 
 ### Week 4 — BOLA/BFLA engine (PROTECT THIS WEEK)
 - [ ] **D19** `engines/bola.py` resource discovery as User A. *Done when: we have IDs provably owned by A.*
@@ -301,13 +301,13 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 17 — complete and verified. (Week 3, day 5 of 6.)
-**Last session:** 2026-09-12 — Day 17 first ablation measurement + `--repair/--no-repair` toggle.
-**Completed:** D1–D17. `--repair/--no-repair` toggle (cli + runner). Three arm results saved: `benchmark/results/{static,ai,ai_repair}.json`. 87 tests pass.
-**Measurement (VAmPI, this session):** static 5 findings/120 req; ai 5/87; ai+repair 5/100. SAME recall (all arms find the 5 vulns incl. SQLi); arms differ on REQUESTS (AI ~28% leaner; repair +13 req, no new findings).
+**Current day:** Day 18 — complete and verified. **WEEK 3 COMPLETE.** (Next: Week 4 — BOLA engine, the crown jewel.)
+**Last session:** 2026-09-12 — Day 18 boolean-SQLi detection + payload tuning + XSS-FP fix.
+**Completed:** D1–D18. Added boolean-based SQLi detection (TRUE/FALSE response differential; the thesis detector for 200-OK injection). Tuned payload prompt (distinct + error-inducing; PROMPTS_VERSION v2). Fixed an XSS false positive (5xx debug-page reflection is misconfig, not XSS). Re-measured + re-saved the three arm JSONs. 90 tests pass.
+**Measurement (VAmPI):** static 5/128 req; ai 5/93; ai+repair 5/107. SAME recall; **AI beats static on requests (~27% fewer)** — done-condition met honestly, 0 FP.
 **In progress:** nothing.
 **Blocked / broken:** nothing.
-**Next action:** Day 18 — buffer + prompt tuning; done-when "AI arm beats static on at least one measure." **Arguably already met by D17: AI = same recall (5) with fewer requests (87 vs 120).** D18 work: (a) write up WHY (context-aware payloads hit the SQLi in fewer targeted tries); (b) OPTIONAL — add boolean-based SQLi detection (true/false response differential) to strengthen detection and de-risk cross-session LLM drift; (c) tune the payload prompt for diversity. Keep it honest.
+**Next action:** Day 19 (WEEK 4 — PROTECT THIS WEEK) — `engines/bola.py` resource-discovery phase: as User A, call collection/GET endpoints and harvest object IDs that provably belong to A; build `{endpoint: [owned_ids]}`. Done when: we have IDs provably owned by User A. Use the two sessions from `IdentityManager` (already wired). VAmPI: `GET /users/v1/{username}` is public; books are owned by users; explore what object IDs A owns (books A created, A's own user record). This is the start of THE crown jewel (BOLA engine + oracle + confidence).
 
 **!!! Reproducibility caveat (viva-critical):**
 - qwen3 via Ollama is DETERMINISTIC WITHIN a session (verified 4/4 identical payloads for `username`, incl. `name1'; DROP TABLE users--` which trips VAmPI's 'one statement at a time' error -> SQLi found). But output DRIFTED across sessions: D15 the AI arm found 4 (only boolean `' OR '1'='1`, no SQL error) vs D17 found 5. Ollama `seed` pins within-session determinism, NOT guaranteed across server/model reloads. Story: we pass `seed` (invariant 3), record model/seed in every ScanResult, save the arm JSONs as the canonical measurement, and state the caveat. AI scans are not cleanly cassette-replayable (Ollama traffic isn't cassetted).
@@ -411,6 +411,9 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — Injection's error-signature SQLi detector misses BOOLEAN-based SQLi (e.g. `' OR '1'='1` -> 200 with data, no error). Surfaced because the AI arm generated exactly that and missed VAmPI's SQLi. Candidate D18 fix: add true-vs-false response-differential detection. This is the project thesis in miniature (200-OK injection invisible to status/error detection).
 - 2026-09-12 — Self-repair loop is decoupled via a `send` callback (D16) — the same `RepairLoop.repair_value` repairs an injection parameter payload (re-probe) and a whole request body (re-POST); it feeds the server's 400/422 error text back to the model and caps at 2 retries, never raising. Repair is built only for ai/both (shares the OllamaClient) and wired into the injection scanner's probe. On VAmPI some AI payloads DO 400 (repair fired, +13 req in the D17 ai+repair arm) but it yielded no new findings there; repair's real payoff is typed/validated fields (crAPI).
 - 2026-09-12 — D17 honest outcome: on VAmPI the three arms reach the SAME recall (5 findings each) — the ablation difference is REQUESTS (static 120, ai 87, ai+repair 100), not recall. A recall gap needs a target with vulns static misses (crAPI) or detection that catches what static's crude payloads don't. Reported as-is; no invented finding-count spread. qwen3 determinism is within-session only (D15 ai=4 vs D17 ai=5) — documented caveat, seed still pinned.
+- 2026-09-12 — Added boolean-based SQLi detection (D18): TRUE (`nx' OR '1'='1`) vs FALSE (`nx' OR '1'='2`) response differential, guarded (true richer than false, false ~ baseline, same status, not 5xx). Catches 200-OK injection invisible to error/status detection — the project thesis — and de-risks reliance on the model emitting an error-triggering payload. Runs only when error/time-based misses.
+- 2026-09-12 — Fixed an XSS FALSE POSITIVE before it reached a result (D18): an AI payload with a quote triggered a 500 Werkzeug debug page that reflected the payload; the XSS detector fired on it. Reflection in a 5xx debug page IS the verbose-error misconfig (already flagged by misconfig), not reflected XSS — XSS detection now skips 5xx. Integrity: verified the finding, found it bogus, removed it rather than claim AI found 6 vs static 5.
+- 2026-09-12 — D18 honest win: AI arm beats static on REQUESTS (93 vs 128, ~27% fewer) at EQUAL recall (5/5) and 0 FP. This is the defensible AI-arm story for the report (efficiency via targeted, context-aware payloads); recall parity is because VAmPI's vulns are all statically findable.
 
 ---
 

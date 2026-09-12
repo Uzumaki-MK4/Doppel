@@ -380,6 +380,30 @@ One short entry per working day: what was built, what broke, what was decided.
 
 **Next** — Day 18: buffer + prompt tuning / detection hardening.
 
+## Day 18 — 2026-09-12 — Boolean SQLi detection + payload tuning (WEEK 3 DONE)
+
+**Built**
+- `scanners/injection.py`: boolean-based SQLi detector — TRUE (`nx' OR '1'='1`) vs FALSE (`nx' OR '1'='2`) response differential, guarded (true substantially different from + richer than false; false ~ baseline; same status; not 5xx). Catches 200-OK injection invisible to error/status detection. Runs when error/time-based misses.
+- `ai/prompts.py`: payload prompt now requires DISTINCT payloads + at least one error-inducing one (PROMPTS_VERSION -> payload-v2). Addresses the D14 low-diversity observation.
+- Re-measured and re-saved the three arm JSONs.
+- `tests/test_injection.py`: +3 (boolean detect, boolean no-FP, XSS-not-on-error-page).
+
+**Caught a false positive (integrity)**
+- Initial re-measure showed ai=6 (an extra "Reflected XSS in username"). Inspected the evidence: it was the AI payload reflected inside a 500 Werkzeug DEBUG page (the `'` in `alert('xss')` broke the SQL). That is the verbose-error misconfig, not reflected XSS. Fixed the XSS detector to skip 5xx, removing the bogus finding. Did NOT claim AI found 6 vs 5.
+
+**Verified — Day 18 done-condition met**
+- Re-measure (VAmPI): static 5 findings/128 req; ai 5/93; ai+repair 5/107. AI beats static on REQUESTS (~27% fewer) at EQUAL recall (5/5), 0 false positives.
+- `pytest -q` -> 90 passed.
+
+**Week 3 retro**
+- AI layer complete: schema-enforced Ollama client, versioned context-aware payload prompt, payload_gen behind --payloads, self-repair loop, first ablation. Honest AI-arm story: same recall, fewer requests; boolean detector ready for 200-OK injection. Reproducibility caveat (within-session determinism) documented.
+
+**Most likely to break next**
+- D19 (Week 4, the crown jewel) `engines/bola.py` resource discovery: harvesting object IDs PROVABLY owned by User A from VAmPI responses (books A creates, A's user record), building `{endpoint:[owned_ids]}`. Risk: VAmPI's object model (what IDs exist, how ownership is expressed in responses) and mapping collection responses to per-A IDs.
+
+**Next** — Day 19: `engines/bola.py` (resource discovery as User A).
+
+
 
 
 
