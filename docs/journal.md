@@ -309,4 +309,27 @@ One short entry per working day: what was built, what broke, what was decided.
 
 **Next** — Day 15: `ai/payload_gen.py`.
 
+## Day 15 — 2026-09-12 — AI payloads wired behind --payloads {static,ai,both}
+
+**Built**
+- `apiguard/ai/payload_gen.py`: `PayloadGenerator.for_parameter()` — context-aware payloads via the prompt + OllamaClient, bucketed sqli/xss, deduped, cached by param shape, graceful on Ollama error.
+- `ScanContext` gains `payload_mode` + `payload_generator`; the injection scanner picks payloads per parameter by mode (`_payloads_for`).
+- `runner.scan` builds the generator for ai/both and degrades to static if Ollama is unreachable (invariant 4); records the effective mode. `cli` `--payloads` flag; summary shows `payloads=<mode>`. `OllamaClient.available()`.
+- `tests/test_payload_gen.py`: 4 (bucket/dedupe, cache-by-shape, graceful-on-error, injection consumes AI payloads via a fake generator).
+
+**Verified — Day 15 done-condition met**
+- Live: `apiguard scan --payloads ai` runs end to end (4 findings, payloads=ai, 79 requests).
+- `pytest -q` -> 84 passed.
+
+**KEY honest observation (ablation signal)**
+- The AI arm found 4 vs the static arm's 5: it MISSED the SQLi. qwen3 generated `name1' OR '1'='1` (VAmPI returns 200, no SQL error) x4 (low diversity); the injection detector is error-signature-only, so boolean-based SQLi slips through. Recorded in BRAIN Section 8 as the D17/D18 focus. Not fabricating an AI win — AI currently only wins on request count (79 vs 120).
+
+**Decided** — see BRAIN.md Section 9 (payload threading + degrade; AI scans not replayable; boolean-SQLi detection gap).
+
+**Most likely to break next**
+- D16 `ai/repair.py`: detecting a 400/422 rejection, feeding the error body back for a corrected payload (cap 2 retries), and proving a rejected payload succeeds on retry — need a VAmPI endpoint that input-validates (e.g. register/login field rules) to demonstrate the repair, and it must log the before/after.
+
+**Next** — Day 16: `ai/repair.py`.
+
+
 
