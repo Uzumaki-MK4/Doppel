@@ -289,3 +289,24 @@ One short entry per working day: what was built, what broke, what was decided.
 
 **Next** — Day 14: `ai/prompts.py`.
 
+## Day 14 — 2026-09-12 — Payload-generation prompt (context-aware)
+
+**Built**
+- `apiguard/ai/prompts.py`: `PROMPTS_VERSION`, `PayloadCandidate`/`PayloadSet` (structured output), `PAYLOAD_SYSTEM`, and `payload_user_prompt()` carrying name/type/format/example/endpoint/schema and instructing type/format-tailored payloads (email -> localpart@domain.tld with the attack hidden inside).
+- `tests/test_prompts.py`: 4 tests (full context present, email tailoring instruction, PayloadSet schema round-trip, version string).
+
+**Verified — Day 14 done-condition met**
+- Live (qwen3:8b, temp 0.8): for `{user_email, string, email}` every candidate kept the email structure with the injection in the local part (e.g. `alice'; DROP TABLE users;--@mail.com`, `alice<script>alert('xss')</script>@mail.com`); for a plain string field the model returned generic `1' OR 1=1--`. Context-awareness confirmed.
+- `pytest -q` -> 80 passed.
+
+**Observed (tune at D18)**
+- Low diversity at temp 0.8 (several identical payloads). Prompt should ask for distinct/varied payloads; payload_gen may dedupe.
+
+**Decided** — see BRAIN.md Section 9 (format-tailored payloads = the AI arm's edge; PROMPTS_VERSION cited).
+
+**Most likely to break next**
+- D15 `ai/payload_gen.py` + `--payloads {static,ai,both}`: threading the payload source through cli -> runner -> ScanContext -> injection scanner without breaking the static default (invariant 4: no-Ollama must still scan). Generating per injectable parameter adds LLM calls per endpoint (latency); may need to cap/generate-once-per-param-shape.
+
+**Next** — Day 15: `ai/payload_gen.py`.
+
+

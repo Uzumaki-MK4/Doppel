@@ -271,7 +271,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 ### Week 3 — AI layer
 - [x] **D13** `ai/client.py` with schema enforcement + retry + logging. *Done when: 20/20 calls return valid objects.* — **DONE 2026-09-12, verified (20/20 valid from qwen3:8b in ~14s; 76 tests pass).**
-- [ ] **D14** `ai/prompts.py` payload prompt with full parameter context. *Done when: an email-format field yields email-shaped candidates.*
+- [x] **D14** `ai/prompts.py` payload prompt with full parameter context. *Done when: an email-format field yields email-shaped candidates.* — **DONE 2026-09-12, verified (email field -> email-shaped payloads; plain field -> generic; 80 tests pass).**
 - [ ] **D15** `ai/payload_gen.py` wired in behind `--payloads {static,ai,both}`. *Done when: `--payloads ai` runs end to end.*
 - [ ] **D16** `ai/repair.py` self-repair loop, max 2 retries. *Done when: a 400-rejected payload succeeds on retry, with logs.*
 - [ ] **D17** First measurement: static vs ai vs ai+repair on VAmPI. *Done when: three result JSONs with different numbers.*
@@ -301,12 +301,16 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 13 — complete and verified. (Week 3, day 1 of 6 — the AI layer.)
-**Last session:** 2026-09-12 — Day 13 `ai/client.py` (Ollama schema-enforced client).
-**Completed:** D1–D13. `ai/client.py`: `OllamaClient.structured()` (format=pydantic schema, think=False, pinned seed, temperature; validates via model_validate_json; retries <=2 bumping seed; inconclusive on failure; logs to logs/llm/). 76 tests pass. Live: 20/20 valid structured objects from qwen3:8b in ~14s.
+**Current day:** Day 14 — complete and verified. (Week 3, day 2 of 6.)
+**Last session:** 2026-09-12 — Day 14 `ai/prompts.py` (versioned payload-generation prompt).
+**Completed:** D1–D14. `ai/prompts.py`: `PROMPTS_VERSION`, `PayloadCandidate`/`PayloadSet` output models, `PAYLOAD_SYSTEM`, `payload_user_prompt()` (full param context, type/format-tailored). 80 tests pass. Live: email field -> email-shaped payloads (injection in the local part); plain field -> generic SQLi.
 **In progress:** nothing.
 **Blocked / broken:** nothing.
-**Next action:** Day 14 — `ai/prompts.py`: the payload-generation prompt, versioned, in one place. It must receive parameter name, declared type, format, example, endpoint path, and surrounding schema. Done when: given `{"name":"user_email","type":"string","format":"email"}` it yields email-shaped injection candidates (not generic ones). Use `OllamaClient.structured()` with a payload-list pydantic model and `temperature_payload` (0.8). Keep prompts versioned so the report can cite the prompt version.
+**Next action:** Day 15 — `ai/payload_gen.py`: wire AI-generated payloads into the injection scanner as an alternative source, switchable via `--payloads {static,ai,both}`. Done when: `apiguard scan --payloads ai` runs end to end. Add the `--payloads` flag to `cli.py scan` and thread it through `runner.scan()`/`ScanContext` to the injection scanner; generate per injectable parameter using `payload_user_prompt` + `OllamaClient`; record `AITrace`-worthy info. Keep static as default so no-Ollama still works (invariant 4).
+
+**Prompt facts:**
+- `ai/prompts.py`: `payload_user_prompt(name,type_,format_,example,path,method,schema,count,attack_types)` + `PAYLOAD_SYSTEM`; call with `OllamaClient.structured(PayloadSet, ..., temperature=settings.temperature_payload)`. `PROMPTS_VERSION` = "2026-09-12.payload-v1" (bump on change; cite in report).
+- Observed at temp 0.8: payloads are context-tailored but LOW DIVERSITY / duplicated. Tune the prompt (ask for distinct/varied payloads; maybe dedupe) at D18.
 
 **AI client facts:**
 - `OllamaClient.from_settings(settings)` builds it (model/host/seed from config). `structured(response_model, prompt=, system=, temperature=, label=)` -> `StructuredResult(ok, value, …, inconclusive)`.
@@ -395,6 +399,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — Replay routes the spec fetch through the engine and stores `meta.spec_source` in the cassette — so `--replay <dir>` re-runs the entire scan (spec + auth + scanners) offline with no `--spec` and no live target. Proven by replaying with the VAmPI container stopped.
 - 2026-09-12 — D12 cassette hardened after an adversarial review workflow (10 confirmed issues): each key now maps to an ORDERED LIST of responses (repeated identical requests like the rate-limit burst replay faithfully, not last-write-wins); Content-Encoding/Length stripped on replay (a stored gzip header would crash httpx re-decoding the already-decoded body); `--record`+`--replay` and `--dry-run`+cassette are rejected; `load_spec` engine path checks HTTP status. Documented live-only limits: cassettes capture responses, NOT timing (time-based SQLi is live-only, won't fire on replay) and non-UTF-8 bodies may not round-trip exactly.
 - 2026-09-12 — AI client retries bump the seed per attempt (config seed + attempt) (D13) — with a pinned seed, re-calling identical input would reproduce the same invalid output, so a plain retry is useless; the bump stays reproducible (deterministic per attempt) while giving the retry a real chance. Exhaustion returns an inconclusive `StructuredResult` (never raises, never regexes) per invariant 2.
+- 2026-09-12 — Payload prompt tailors to the declared type/format, not a generic wordlist (D14) — verified live (email field -> email-shaped payloads with the attack in the local part; plain field -> generic). This format-tailoring is the AI arm's intended edge over static payloads and the thing the ablation should show. `PROMPTS_VERSION` is bumped on any prompt change so results cite the exact prompt. Low payload diversity at temp 0.8 is a known D18 tuning item.
 
 ---
 
