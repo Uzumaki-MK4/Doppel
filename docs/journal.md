@@ -403,6 +403,27 @@ One short entry per working day: what was built, what broke, what was decided.
 
 **Next** — Day 19: `engines/bola.py` (resource discovery as User A).
 
+## Day 19 — 2026-09-12 — BOLA resource discovery (Week 4 begins; crown jewel)
+
+**Explored first (live)**
+- VAmPI books: collection `GET /books/v1` -> `{"Books":[{book_title, user}]}`; object `GET /books/v1/{book_title}` -> `{book_title, owner, secret}` (secret is owner-only = the BOLA); `POST /books/v1` creates a book owned by the creator. Users: `GET /users/v1/{username}` -> `{username,email}` (public).
+
+**Built**
+- `apiguard/engines/bola.py`: `ResourceDiscoverer.discover()` -> `list[OwnedObject]`. Finds object endpoints (GET ending in `/{id}`), establishes A-owned ids via seed (POST-as-A) + harvest (collection item whose owner field == A's username), and captures A's own successful access per id.
+- `tests/test_bola_discovery.py`: 2 (seed+harvest + attribution excludes other users' objects; no-collection is safe).
+
+**Verified — Day 19 done-condition met**
+- Live as User A on VAmPI -> 2 objects provably owned by A: seeded book `GET /books/v1/{book_title}=apiguard_userA_book_title` (secret captured) and A's record `GET /users/v1/{username}=apiguard_a`. Each carries A's own 200 access.
+- `pytest -q` -> 92 passed.
+
+**Decided** — see BRAIN.md Section 9 (seed+harvest ownership; generic owner-field match).
+
+**Most likely to break next**
+- D20 cross-access + control: need B-owned objects for the control (B accessing B's own object). Reuse the discoverer with owner="userB". Then build triples (A access, B cross-access of A's id, B control of B's id). The public `GET /users/v1/{username}` will look like a "leak" to naive checks but is by-design public -> the D21 oracle / D22 confidence must not over-flag it; the real BOLA is the book secret.
+
+**Next** — Day 20: `engines/bola.py` cross-access + control phase.
+
+
 
 
 

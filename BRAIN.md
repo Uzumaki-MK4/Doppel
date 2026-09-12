@@ -278,7 +278,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - [x] **D18** Buffer + prompt tuning. *Done when: AI arm beats static on at least one measure.* — **DONE 2026-09-12, verified (AI 5 findings/93 req vs static 5/128 = same recall, ~27% fewer requests; +boolean SQLi detector; fixed an XSS false positive; 90 tests). WEEK 3 COMPLETE.**
 
 ### Week 4 — BOLA/BFLA engine (PROTECT THIS WEEK)
-- [ ] **D19** `engines/bola.py` resource discovery as User A. *Done when: we have IDs provably owned by A.*
+- [x] **D19** `engines/bola.py` resource discovery as User A. *Done when: we have IDs provably owned by A.* — **DONE 2026-09-12, verified (2 A-owned objects: seeded book + A's user record, A-access captured; 92 tests pass).**
 - [ ] **D20** Cross-access phase + control requests. *Done when: we have (A response, B cross-access, B control) triples.*
 - [ ] **D21** `ai/oracle.py`. *Done when: flags VAmPI's known BOLA, clears a legitimate access.*
 - [ ] **D22** `scoring/confidence.py` with the 5 signals. *Done when: every BOLA finding scored from >=4 measurable signals.*
@@ -301,13 +301,17 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 18 — complete and verified. **WEEK 3 COMPLETE.** (Next: Week 4 — BOLA engine, the crown jewel.)
-**Last session:** 2026-09-12 — Day 18 boolean-SQLi detection + payload tuning + XSS-FP fix.
-**Completed:** D1–D18. Added boolean-based SQLi detection (TRUE/FALSE response differential; the thesis detector for 200-OK injection). Tuned payload prompt (distinct + error-inducing; PROMPTS_VERSION v2). Fixed an XSS false positive (5xx debug-page reflection is misconfig, not XSS). Re-measured + re-saved the three arm JSONs. 90 tests pass.
-**Measurement (VAmPI):** static 5/128 req; ai 5/93; ai+repair 5/107. SAME recall; **AI beats static on requests (~27% fewer)** — done-condition met honestly, 0 FP.
+**Current day:** Day 19 — complete and verified. (Week 4 — crown jewel — day 1 of 6.)
+**Last session:** 2026-09-12 — Day 19 `engines/bola.py` resource discovery.
+**Completed:** D1–D19. `engines/bola.py`: `ResourceDiscoverer.discover()` (seed via POST-as-A + harvest by owner-field match; captures A's own access per owned id). 92 tests pass. Live: 2 A-owned objects discovered on VAmPI.
 **In progress:** nothing.
 **Blocked / broken:** nothing.
-**Next action:** Day 19 (WEEK 4 — PROTECT THIS WEEK) — `engines/bola.py` resource-discovery phase: as User A, call collection/GET endpoints and harvest object IDs that provably belong to A; build `{endpoint: [owned_ids]}`. Done when: we have IDs provably owned by User A. Use the two sessions from `IdentityManager` (already wired). VAmPI: `GET /users/v1/{username}` is public; books are owned by users; explore what object IDs A owns (books A created, A's own user record). This is the start of THE crown jewel (BOLA engine + oracle + confidence).
+**Next action:** Day 20 — `engines/bola.py` cross-access + control phase. For each OwnedObject (A's id), replay the matching GET as User B (cross-access) AND have B access B's OWN object (control). Produce triples (A's access [have it], B cross-access, B control). Done when: we have (A response, B cross-access, B control) triples. B needs B-owned objects too — reuse the discoverer with owner="userB" to get B's own ids for controls, or seed a B-owned book. Feed triples to the oracle (D21) + confidence (D22).
+
+**BOLA facts (VAmPI):**
+- Crown-jewel BOLA target: `GET /books/v1/{book_title}` returns `{book_title, owner, secret}` — the `secret` is owner-only; B reading A's book secret = the BOLA. A's seeded book: `apiguard_userA_book_title`.
+- `GET /users/v1/{username}` returns `{username,email}` and is PUBLIC (no auth) — B reading A's record is by-design public (email leak, lower value than the book secret). Oracle/confidence must not over-flag this public read.
+- Books collection `GET /books/v1` -> `{"Books":[{book_title, user}]}`; object owner field is `owner` (detail) / `user` (collection).
 
 **!!! Reproducibility caveat (viva-critical):**
 - qwen3 via Ollama is DETERMINISTIC WITHIN a session (verified 4/4 identical payloads for `username`, incl. `name1'; DROP TABLE users--` which trips VAmPI's 'one statement at a time' error -> SQLi found). But output DRIFTED across sessions: D15 the AI arm found 4 (only boolean `' OR '1'='1`, no SQL error) vs D17 found 5. Ollama `seed` pins within-session determinism, NOT guaranteed across server/model reloads. Story: we pass `seed` (invariant 3), record model/seed in every ScanResult, save the arm JSONs as the canonical measurement, and state the caveat. AI scans are not cleanly cassette-replayable (Ollama traffic isn't cassetted).
@@ -414,6 +418,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — Added boolean-based SQLi detection (D18): TRUE (`nx' OR '1'='1`) vs FALSE (`nx' OR '1'='2`) response differential, guarded (true richer than false, false ~ baseline, same status, not 5xx). Catches 200-OK injection invisible to error/status detection — the project thesis — and de-risks reliance on the model emitting an error-triggering payload. Runs only when error/time-based misses.
 - 2026-09-12 — Fixed an XSS FALSE POSITIVE before it reached a result (D18): an AI payload with a quote triggered a 500 Werkzeug debug page that reflected the payload; the XSS detector fired on it. Reflection in a 5xx debug page IS the verbose-error misconfig (already flagged by misconfig), not reflected XSS — XSS detection now skips 5xx. Integrity: verified the finding, found it bogus, removed it rather than claim AI found 6 vs static 5.
 - 2026-09-12 — D18 honest win: AI arm beats static on REQUESTS (93 vs 128, ~27% fewer) at EQUAL recall (5/5) and 0 FP. This is the defensible AI-arm story for the report (efficiency via targeted, context-aware payloads); recall parity is because VAmPI's vulns are all statically findable.
+- 2026-09-12 — BOLA ownership is established two ways (D19): seed (POST-as-A creates an object A provably owns) and harvest (collection item whose owner field == A's username). Ownership detection is generic: an item is A's if any of its string values equals A's username. A's own access is captured per owned id as the cross-access baseline. Object endpoint = GET whose path ends in `/{id}`; collection = path minus that segment.
 
 ---
 
