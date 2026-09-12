@@ -35,6 +35,11 @@ class ScanContext:
     base_url: str
     settings: Settings | None = None
     sessions: dict[str, Session] | None = None
+    # Payload source for the injection scanner: "static" | "ai" | "both".
+    payload_mode: str = "static"
+    # A PayloadGenerator (duck-typed to avoid importing the ai layer here); None
+    # means static-only (e.g. Ollama unavailable).
+    payload_generator: object | None = None
 
 
 class Scanner(ABC):

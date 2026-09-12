@@ -102,6 +102,9 @@ def scan(
     config: str = typer.Option(
         "config.yaml", "--config", help="Config YAML path (defaults are used if absent)."
     ),
+    payloads: str = typer.Option(
+        "static", "--payloads", help="Payload source: static | ai | both."
+    ),
     record: str = typer.Option(
         None, "--record", help="Record all HTTP into this cassette directory."
     ),
@@ -113,6 +116,9 @@ def scan(
     """Scan an API for vulnerabilities. Use --dry-run for a plumbing-only pass."""
     settings = load_settings(config)
 
+    if payloads not in ("static", "ai", "both"):
+        console.print("[bold red]--payloads must be one of: static, ai, both.[/bold red]")
+        raise typer.Exit(code=2)
     if record and replay:
         console.print("[bold red]Use either --record or --replay, not both.[/bold red]")
         raise typer.Exit(code=2)
@@ -136,7 +142,7 @@ def scan(
         if dry_run:
             result = _run_dry_run(spec, settings, confirm_authorized)
         else:
-            result = _run_scan(spec, settings, confirm_authorized, record, replay)
+            result = _run_scan(spec, settings, confirm_authorized, record, replay, payloads)
     except ScopeError as exc:
         console.print(f"[bold red]Scope refused:[/bold red] {exc}")
         raise typer.Exit(code=2) from None
@@ -203,6 +209,7 @@ def _run_scan(
     confirm_authorized: bool,
     record_dir: str | None = None,
     replay_dir: str | None = None,
+    payload_mode: str = "static",
 ) -> ScanResult:
     with Progress(
         TextColumn("[progress.description]{task.description}"),
@@ -223,6 +230,7 @@ def _run_scan(
                 spec,
                 settings,
                 confirm_authorized=confirm_authorized,
+                payload_mode=payload_mode,
                 record_dir=record_dir,
                 replay_dir=replay_dir,
                 on_progress=on_progress,
@@ -263,7 +271,8 @@ def _render_findings(result: ScanResult) -> None:
     breakdown = ", ".join(f"{k}={v}" for k, v in counts.items() if v) or "none"
     console.print(
         f"[bold]{len(result.findings)}[/bold] findings ({breakdown}) across "
-        f"{len(result.endpoints)} endpoints; {result.requests_sent} requests sent."
+        f"{len(result.endpoints)} endpoints; {result.requests_sent} requests sent; "
+        f"payloads={result.payload_mode}."
     )
 
 

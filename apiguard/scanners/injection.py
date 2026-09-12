@@ -82,6 +82,16 @@ def _slug(*parts: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", "-".join(parts).lower()).strip("-")
 
 
+def _dedupe(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in items:
+        if item not in seen:
+            seen.add(item)
+            out.append(item)
+    return out
+
+
 class InjectionScanner(Scanner):
     name = "injection"
     # OWASP API Top 10 2023 folds injection into API8 (Security Misconfiguration);
@@ -111,9 +121,7 @@ class InjectionScanner(Scanner):
         return exchange, time.monotonic() - start
 
     async def run(self, endpoint: Endpoint) -> list[Finding]:
-        targets = [
-            (p.name, p.location) for p in endpoint.parameters if p.location in ("path", "query")
-        ]
+        targets = [p for p in endpoint.parameters if p.location in ("path", "query")]
         if not targets:
             return []
 
@@ -122,17 +130,40 @@ class InjectionScanner(Scanner):
         baseline_has_sql = _first_sql_signature(baseline_ex.evidence.response_body) is not None
 
         findings: list[Finding] = []
-        for name, loc in targets:
-            sqli = await self._scan_sqli(endpoint, name, loc, headers, baseline_has_sql, baseline_t)
+        for param in targets:
+            sqli_payloads, xss_payloads = await self._payloads_for(endpoint, param)
+            sqli = await self._scan_sqli(
+                endpoint, param.name, param.location, headers, baseline_has_sql, baseline_t, sqli_payloads
+            )
             if sqli is not None:
                 findings.append(sqli)
-            xss = await self._scan_xss(endpoint, name, loc, headers)
+            xss = await self._scan_xss(endpoint, param.name, param.location, headers, xss_payloads)
             if xss is not None:
                 findings.append(xss)
         return findings
 
-    async def _scan_sqli(self, endpoint, name, loc, headers, baseline_has_sql, baseline_t):
-        for payload in self._sqli:
+    async def _payloads_for(self, endpoint: Endpoint, param) -> tuple[list[str], list[str]]:
+        """Pick payloads per parameter by the context's payload_mode."""
+        mode = getattr(self.context, "payload_mode", "static")
+        generator = getattr(self.context, "payload_generator", None)
+        if mode == "static" or generator is None:
+            return self._sqli, self._xss
+
+        ai = await generator.for_parameter(
+            name=param.name,
+            type_=param.type_,
+            format_=param.format_,
+            example=param.example,
+            path=endpoint.path,
+            method=endpoint.method,
+        )
+        ai_sqli, ai_xss = ai.get("sqli", []), ai.get("xss", [])
+        if mode == "ai":
+            return ai_sqli, ai_xss
+        return _dedupe(self._sqli + ai_sqli), _dedupe(self._xss + ai_xss)  # both
+
+    async def _scan_sqli(self, endpoint, name, loc, headers, baseline_has_sql, baseline_t, payloads):
+        for payload in payloads:
             exchange, elapsed = await self._probe(endpoint, {name: payload}, headers)
             sig = _first_sql_signature(exchange.evidence.response_body)
             if sig and not baseline_has_sql:
@@ -169,8 +200,8 @@ class InjectionScanner(Scanner):
             evidence=exchange.evidence,
         )
 
-    async def _scan_xss(self, endpoint, name, loc, headers):
-        for payload in self._xss:
+    async def _scan_xss(self, endpoint, name, loc, headers, payloads):
+        for payload in payloads:
             exchange, _ = await self._probe(endpoint, {name: payload}, headers)
             ctype = exchange.evidence.response_headers.get("content-type", "").lower()
             if "html" in ctype and payload in exchange.evidence.response_body:

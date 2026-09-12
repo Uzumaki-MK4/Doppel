@@ -15,6 +15,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from urllib.parse import urlparse
 
+from apiguard.ai.client import OllamaClient
+from apiguard.ai.payload_gen import PayloadGenerator
 from apiguard.core.findings import finalize
 from apiguard.core.http_engine import Cassette, HttpEngine
 from apiguard.core.identity import IdentityManager, UserCredentials
@@ -115,6 +117,17 @@ async def scan(
     else:
         cassette = None
 
+    # AI payloads: build a generator for ai/both, degrading to static if Ollama
+    # is unreachable (invariant 4 — a scan must still run with Ollama off).
+    generator = None
+    effective_mode = payload_mode
+    if payload_mode in ("ai", "both"):
+        ai_client = OllamaClient.from_settings(settings)
+        if await ai_client.available():
+            generator = PayloadGenerator(ai_client, temperature=settings.temperature_payload)
+        else:
+            effective_mode = "static"
+
     async with HttpEngine(
         max_concurrency=settings.http.max_concurrency,
         rate_limit_per_s=settings.http.rate_limit_per_s,
@@ -136,7 +149,12 @@ async def scan(
         }
         sessions = await identity.setup(users)
         context = ScanContext(
-            engine=engine, base_url=base_url, settings=settings, sessions=sessions
+            engine=engine,
+            base_url=base_url,
+            settings=settings,
+            sessions=sessions,
+            payload_mode=effective_mode,
+            payload_generator=generator,
         )
         scanners = build_scanners(context)  # discover + instantiate every registered scanner
 
@@ -153,7 +171,7 @@ async def scan(
             spec_url=spec_source,
             model=settings.model,
             seed=settings.seed,
-            payload_mode=payload_mode,
+            payload_mode=effective_mode,  # what actually ran (static if Ollama was down)
             endpoints=endpoints,
             findings=finalize(findings),  # dedupe + validate + stable sort
             requests_sent=engine.requests_sent,

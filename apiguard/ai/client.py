@@ -86,6 +86,14 @@ class OllamaClient:
             **overrides,
         )
 
+    async def available(self) -> bool:
+        """True if the Ollama server is reachable (for the invariant-4 degrade check)."""
+        try:
+            await self._client.list()
+            return True
+        except Exception:
+            return False
+
     async def structured(
         self,
         response_model: type[BaseModel],
