@@ -271,3 +271,21 @@ One short entry per working day: what was built, what broke, what was decided.
 - D13 `ai/client.py`: first real Ollama integration in the engine. Schema-enforced JSON (`format`) + `think=False` + pinned seed + retry-on-invalid-JSON, logging to `logs/llm/`. Risk: qwen3 latency, occasional invalid JSON despite `format`, and the 20/20 reliability bar. The D1 smoke already proved the core pattern works on this machine.
 
 **Next** — Day 13 (Week 3): `ai/client.py`.
+
+## Day 13 — 2026-09-12 — Ollama client (schema-enforced structured output)
+
+**Built**
+- `apiguard/ai/client.py`: `OllamaClient.structured(response_model, prompt/system/messages, temperature, label)` -> `StructuredResult`. Sends chat with `format`=pydantic schema, `think=False`, pinned seed, given temperature; validates with `model_validate_json` (never regex). Retries <=2 on invalid output (seed bumped per attempt for reproducible-yet-different retries); inconclusive result on exhaustion. Logs every call to `logs/llm/`. Underlying client injectable (`client=`) for tests.
+- `tests/test_ai_client.py`: 5 tests (valid first try + options/format/think asserted, retry-then-success seed bump, exhausted=inconclusive, logging, system+temperature threading) using an injected fake.
+
+**Verified — Day 13 done-condition met**
+- Live: 20/20 valid structured `Verdict` objects from qwen3:8b in ~14s (~0.7s/call); 20 JSON logs written to `logs/llm/`. The sample verdict correctly flagged an email leak (preview of the D21 oracle).
+- `pytest -q` -> 76 passed.
+
+**Decided** — see BRAIN.md Section 9 (seed bump per retry; inconclusive-not-raise; injectable client).
+
+**Most likely to break next**
+- D14 `ai/prompts.py`: getting the payload-generation prompt to produce CONTEXT-AWARE candidates (email-shaped for a format=email field) rather than a generic wordlist — this is the whole point of the AI arm. Needs a payload-list pydantic model + temperature 0.8, and versioned prompts so the report can cite them.
+
+**Next** — Day 14: `ai/prompts.py`.
+

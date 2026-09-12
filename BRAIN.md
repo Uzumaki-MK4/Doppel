@@ -270,7 +270,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - [x] **D12** pytest + respx, first cassettes. *Done when: pytest green, `benchmark/results/baseline.json` saved.* — **DONE 2026-09-12, verified (69 tests; baseline.json saved; offline replay reproduces 5 findings with VAmPI stopped). WEEK 2 COMPLETE.**
 
 ### Week 3 — AI layer
-- [ ] **D13** `ai/client.py` with schema enforcement + retry + logging. *Done when: 20/20 calls return valid objects.*
+- [x] **D13** `ai/client.py` with schema enforcement + retry + logging. *Done when: 20/20 calls return valid objects.* — **DONE 2026-09-12, verified (20/20 valid from qwen3:8b in ~14s; 76 tests pass).**
 - [ ] **D14** `ai/prompts.py` payload prompt with full parameter context. *Done when: an email-format field yields email-shaped candidates.*
 - [ ] **D15** `ai/payload_gen.py` wired in behind `--payloads {static,ai,both}`. *Done when: `--payloads ai` runs end to end.*
 - [ ] **D16** `ai/repair.py` self-repair loop, max 2 retries. *Done when: a 400-rejected payload succeeds on retry, with logs.*
@@ -301,12 +301,16 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 12 — complete and verified. **WEEK 2 COMPLETE.** (Next: Week 3, AI layer.)
-**Last session:** 2026-09-12 — Day 12 cassettes (record/replay) + `benchmark/results/baseline.json`.
-**Completed:** D1–D12 (all of Weeks 1-2). `http_engine.py` gained a `Cassette` (record/replay keyed by method+url+body+significant headers); `runner.scan()` supports `--record`/`--replay` (spec fetch routed through the engine so replay is fully offline); `apiguard scan --out` saves the ScanResult. 69 tests pass. `benchmark/results/baseline.json` = the static-arm baseline (5 findings, 120 requests). Offline replay reproduces all 5 findings with VAmPI STOPPED.
-**In progress:** nothing (an adversarial review workflow found 10 issues in the cassette code; the real ones are fixed — see Section 9 — and re-verified: 71 tests, offline replay still reproduces 5 findings).
+**Current day:** Day 13 — complete and verified. (Week 3, day 1 of 6 — the AI layer.)
+**Last session:** 2026-09-12 — Day 13 `ai/client.py` (Ollama schema-enforced client).
+**Completed:** D1–D13. `ai/client.py`: `OllamaClient.structured()` (format=pydantic schema, think=False, pinned seed, temperature; validates via model_validate_json; retries <=2 bumping seed; inconclusive on failure; logs to logs/llm/). 76 tests pass. Live: 20/20 valid structured objects from qwen3:8b in ~14s.
+**In progress:** nothing.
 **Blocked / broken:** nothing.
-**Next action:** Day 13 (Week 3) — `ai/client.py`: Ollama wrapper with schema-enforced output (`format`=pydantic schema), `think=False`, pinned `seed`, temperature control, retry-on-invalid-JSON (<=2), log every prompt+response to `logs/llm/`. Done when: 20/20 structured calls return valid objects. Model qwen3:8b is pulled; the D1 smoke proved the pattern (`format` + `think=False` -> clean JSON). Never regex LLM text (invariant 2).
+**Next action:** Day 14 — `ai/prompts.py`: the payload-generation prompt, versioned, in one place. It must receive parameter name, declared type, format, example, endpoint path, and surrounding schema. Done when: given `{"name":"user_email","type":"string","format":"email"}` it yields email-shaped injection candidates (not generic ones). Use `OllamaClient.structured()` with a payload-list pydantic model and `temperature_payload` (0.8). Keep prompts versioned so the report can cite the prompt version.
+
+**AI client facts:**
+- `OllamaClient.from_settings(settings)` builds it (model/host/seed from config). `structured(response_model, prompt=, system=, temperature=, label=)` -> `StructuredResult(ok, value, …, inconclusive)`.
+- qwen3:8b with `format`=schema is fast (~0.7s/call) and reliable: 20/20 first-try valid in the smoke. Seed bumps by attempt on retry.
 
 **Cassette facts:**
 - `cassettes/vampi/cassette.json` (~120 interactions, meta.spec_source) replays the whole VAmPI scan offline: `apiguard scan --replay cassettes/vampi` (no --spec, no live target). Re-record with `--record cassettes/vampi` after behavior changes.
@@ -390,6 +394,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — JWT expired-token forge is derived from the token's own `iat` shifted into the past, not `time.time()` (D12) — wall-clock made the forged token differ between record and replay (cassette miss) and violated reproducibility; now deterministic.
 - 2026-09-12 — Replay routes the spec fetch through the engine and stores `meta.spec_source` in the cassette — so `--replay <dir>` re-runs the entire scan (spec + auth + scanners) offline with no `--spec` and no live target. Proven by replaying with the VAmPI container stopped.
 - 2026-09-12 — D12 cassette hardened after an adversarial review workflow (10 confirmed issues): each key now maps to an ORDERED LIST of responses (repeated identical requests like the rate-limit burst replay faithfully, not last-write-wins); Content-Encoding/Length stripped on replay (a stored gzip header would crash httpx re-decoding the already-decoded body); `--record`+`--replay` and `--dry-run`+cassette are rejected; `load_spec` engine path checks HTTP status. Documented live-only limits: cassettes capture responses, NOT timing (time-based SQLi is live-only, won't fire on replay) and non-UTF-8 bodies may not round-trip exactly.
+- 2026-09-12 — AI client retries bump the seed per attempt (config seed + attempt) (D13) — with a pinned seed, re-calling identical input would reproduce the same invalid output, so a plain retry is useless; the bump stays reproducible (deterministic per attempt) while giving the retry a real chance. Exhaustion returns an inconclusive `StructuredResult` (never raises, never regexes) per invariant 2.
 
 ---
 
