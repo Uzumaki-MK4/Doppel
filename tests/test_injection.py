@@ -128,3 +128,70 @@ def test_xss_marker_in_json_is_not_flagged():
             return await scanner.run(_endpoint_with_query())
 
     assert asyncio.run(go()) == []
+
+
+@respx.mock
+def test_detects_boolean_based_sqli():
+    """TRUE condition leaks data a FALSE condition does not -> 200-OK boolean SQLi."""
+
+    def handler(request):
+        from urllib.parse import unquote
+
+        q = unquote(request.url.params.get("q", ""))
+        if "'1'='1" in q:  # true condition -> returns the whole table
+            return Response(200, json={"users": [{"u": "a"}, {"u": "b"}, {"u": "c"}, {"u": "d"}]})
+        # false condition and baseline ("test") -> empty / not found
+        return Response(200, json={"users": []})
+
+    respx.get(f"{BASE}/search").mock(side_effect=handler)
+    ep = _endpoint_with_query()
+
+    async def go():
+        async with HttpEngine(rate_limit_per_s=0) as engine:
+            scanner = InjectionScanner(
+                ScanContext(engine=engine, base_url=BASE), sqli_payloads=[], xss_payloads=[]
+            )
+            return await scanner.run(ep)
+
+    findings = asyncio.run(go())
+    assert len(findings) == 1
+    assert "SQL injection" in findings[0].title
+    assert findings[0].confidence == 0.85  # boolean-based confidence
+
+
+@respx.mock
+def test_boolean_no_false_positive_when_responses_match():
+    """A non-injectable endpoint returns the same body for true/false -> no finding."""
+    respx.get(f"{BASE}/search").mock(return_value=Response(200, json={"results": []}))
+
+    async def go():
+        async with HttpEngine(rate_limit_per_s=0) as engine:
+            scanner = InjectionScanner(
+                ScanContext(engine=engine, base_url=BASE), sqli_payloads=[], xss_payloads=[]
+            )
+            return await scanner.run(_endpoint_with_query())
+
+    assert asyncio.run(go()) == []
+
+
+@respx.mock
+def test_xss_not_flagged_on_error_page():
+    """Reflection inside a 5xx debug page is the verbose-error misconfig, not XSS."""
+    marker = "<apiguardXSSMARKER>"
+
+    def handler(request):
+        q = unquote(request.url.params.get("q", ""))
+        if marker in q:  # reflected, but in a 500 debug page
+            return Response(500, text=f"<html>Traceback ... {q}</html>", headers={"content-type": "text/html"})
+        return Response(200, json={})
+
+    respx.get(f"{BASE}/search").mock(side_effect=handler)
+
+    async def go():
+        async with HttpEngine(rate_limit_per_s=0) as engine:
+            scanner = InjectionScanner(
+                ScanContext(engine=engine, base_url=BASE), sqli_payloads=[], xss_payloads=[marker]
+            )
+            return await scanner.run(_endpoint_with_query())
+
+    assert asyncio.run(go()) == []  # not flagged as XSS

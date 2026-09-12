@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 import time
+from difflib import SequenceMatcher
 from pathlib import Path
 
 from apiguard.core.http_engine import build_request
@@ -82,6 +83,10 @@ def _slug(*parts: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", "-".join(parts).lower()).strip("-")
 
 
+def _similarity(a: str, b: str) -> float:
+    return SequenceMatcher(None, a[:2000], b[:2000]).ratio()
+
+
 def _dedupe(items: list[str]) -> list[str]:
     seen: set[str] = set()
     out: list[str] = []
@@ -135,12 +140,49 @@ class InjectionScanner(Scanner):
             sqli = await self._scan_sqli(
                 endpoint, param, headers, baseline_has_sql, baseline_t, sqli_payloads
             )
+            if sqli is None:
+                # Error/time-based missed it; try boolean-based (200-OK differential).
+                sqli = await self._scan_boolean_sqli(endpoint, param, headers, baseline_ex)
             if sqli is not None:
                 findings.append(sqli)
             xss = await self._scan_xss(endpoint, param, headers, xss_payloads)
             if xss is not None:
                 findings.append(xss)
         return findings
+
+    async def _scan_boolean_sqli(self, endpoint, param, headers, baseline_ex):
+        """Detect boolean-based SQLi: a TRUE condition leaks data a FALSE one does not.
+
+        This is the kind of injection that returns a normal 200 and is invisible to
+        error/status-based detection.
+        """
+        base = "apiguardnx0"  # a value unlikely to exist, so the OR drives the result
+        true_ex, _ = await self._send_payload(endpoint, param, f"{base}' OR '1'='1", headers)
+        false_ex, _ = await self._send_payload(endpoint, param, f"{base}' OR '1'='2", headers)
+
+        if true_ex.status >= 400 or true_ex.status != false_ex.status:
+            return None
+        true_body = true_ex.evidence.response_body
+        false_body = false_ex.evidence.response_body
+        base_body = baseline_ex.evidence.response_body
+
+        # TRUE differs substantially from FALSE, TRUE is richer, and FALSE ~ baseline
+        # (i.e. the false/nonexistent condition behaves like "no data").
+        if (
+            _similarity(true_body, false_body) < 0.6
+            and len(true_body) > len(false_body)
+            and _similarity(false_body, base_body) > 0.7
+        ):
+            return self._sqli_finding(
+                endpoint,
+                param.name,
+                param.location,
+                f"{base}' OR '1'='1",
+                true_ex,
+                "a true/false boolean-condition response differential (boolean-based SQLi, 200 OK)",
+                0.85,
+            )
+        return None
 
     async def _send_payload(self, endpoint: Endpoint, param, payload: str, headers):
         """Probe with one payload; if input validation rejects it (400/422) and a
@@ -230,6 +272,10 @@ class InjectionScanner(Scanner):
         name, loc = param.name, param.location
         for payload in payloads:
             exchange, _ = await self._send_payload(endpoint, param, payload, headers)
+            # Reflection inside a 5xx server-error/debug page is the verbose-error
+            # misconfiguration (flagged by misconfig), not a clean reflected XSS.
+            if exchange.status >= 500:
+                continue
             ctype = exchange.evidence.response_headers.get("content-type", "").lower()
             if "html" in ctype and payload in exchange.evidence.response_body:
                 return Finding(

@@ -17,7 +17,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-PROMPTS_VERSION = "2026-09-12.payload-v1+repair-v1"
+PROMPTS_VERSION = "2026-09-12.payload-v2+repair-v1"
 
 
 class PayloadCandidate(BaseModel):
@@ -109,6 +109,9 @@ def payload_user_prompt(
         "  - type 'integer'/'number': use numeric-looking payloads.",
         "  - otherwise: respect any obvious constraints from the example/schema.",
         "Avoid generic wordlist strings the parameter's validation would reject.",
+        "Make the payloads DISTINCT (no duplicates) and varied in technique: include at "
+        "least one error-inducing payload (an unbalanced single quote or a statement "
+        "terminator), at least one boolean-based payload, and a UNION- or comment-based one.",
         "For each payload provide: value, attack_type (one of "
         f"{', '.join((*attack_types, 'generic'))}), and a one-line rationale.",
     ]
