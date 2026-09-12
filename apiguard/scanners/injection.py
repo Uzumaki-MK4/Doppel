@@ -133,14 +133,39 @@ class InjectionScanner(Scanner):
         for param in targets:
             sqli_payloads, xss_payloads = await self._payloads_for(endpoint, param)
             sqli = await self._scan_sqli(
-                endpoint, param.name, param.location, headers, baseline_has_sql, baseline_t, sqli_payloads
+                endpoint, param, headers, baseline_has_sql, baseline_t, sqli_payloads
             )
             if sqli is not None:
                 findings.append(sqli)
-            xss = await self._scan_xss(endpoint, param.name, param.location, headers, xss_payloads)
+            xss = await self._scan_xss(endpoint, param, headers, xss_payloads)
             if xss is not None:
                 findings.append(xss)
         return findings
+
+    async def _send_payload(self, endpoint: Endpoint, param, payload: str, headers):
+        """Probe with one payload; if input validation rejects it (400/422) and a
+        repair loop is available, repair the payload and re-probe (capped)."""
+        exchange, elapsed = await self._probe(endpoint, {param.name: payload}, headers)
+        repair = getattr(self.context, "repair_loop", None)
+        if exchange.status in (400, 422) and repair is not None:
+            async def send(corrected: str):
+                again, _ = await self._probe(endpoint, {param.name: corrected}, headers)
+                return again
+
+            result = await repair.repair_value(
+                send=send,
+                initial_value=payload,
+                context=(
+                    f"{param.location} parameter {param.name!r} "
+                    f"(type={param.type_}, format={param.format_}) of "
+                    f"{endpoint.method} {endpoint.path}"
+                ),
+                error_body=exchange.evidence.response_body,
+                attack_goal="an injection payload that passes input validation",
+            )
+            if result.final_exchange is not None:
+                exchange, elapsed = result.final_exchange, 0.0  # timing moot after repair
+        return exchange, elapsed
 
     async def _payloads_for(self, endpoint: Endpoint, param) -> tuple[list[str], list[str]]:
         """Pick payloads per parameter by the context's payload_mode."""
@@ -162,9 +187,10 @@ class InjectionScanner(Scanner):
             return ai_sqli, ai_xss
         return _dedupe(self._sqli + ai_sqli), _dedupe(self._xss + ai_xss)  # both
 
-    async def _scan_sqli(self, endpoint, name, loc, headers, baseline_has_sql, baseline_t, payloads):
+    async def _scan_sqli(self, endpoint, param, headers, baseline_has_sql, baseline_t, payloads):
+        name, loc = param.name, param.location
         for payload in payloads:
-            exchange, elapsed = await self._probe(endpoint, {name: payload}, headers)
+            exchange, elapsed = await self._send_payload(endpoint, param, payload, headers)
             sig = _first_sql_signature(exchange.evidence.response_body)
             if sig and not baseline_has_sql:
                 return self._sqli_finding(
@@ -200,9 +226,10 @@ class InjectionScanner(Scanner):
             evidence=exchange.evidence,
         )
 
-    async def _scan_xss(self, endpoint, name, loc, headers, payloads):
+    async def _scan_xss(self, endpoint, param, headers, payloads):
+        name, loc = param.name, param.location
         for payload in payloads:
-            exchange, _ = await self._probe(endpoint, {name: payload}, headers)
+            exchange, _ = await self._send_payload(endpoint, param, payload, headers)
             ctype = exchange.evidence.response_headers.get("content-type", "").lower()
             if "html" in ctype and payload in exchange.evidence.response_body:
                 return Finding(

@@ -40,6 +40,8 @@ class ScanContext:
     # A PayloadGenerator (duck-typed to avoid importing the ai layer here); None
     # means static-only (e.g. Ollama unavailable).
     payload_generator: object | None = None
+    # A RepairLoop (duck-typed); None disables self-repair of rejected payloads.
+    repair_loop: object | None = None
 
 
 class Scanner(ABC):

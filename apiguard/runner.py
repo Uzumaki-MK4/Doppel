@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 
 from apiguard.ai.client import OllamaClient
 from apiguard.ai.payload_gen import PayloadGenerator
+from apiguard.ai.repair import RepairLoop
 from apiguard.core.findings import finalize
 from apiguard.core.http_engine import Cassette, HttpEngine
 from apiguard.core.identity import IdentityManager, UserCredentials
@@ -120,11 +121,13 @@ async def scan(
     # AI payloads: build a generator for ai/both, degrading to static if Ollama
     # is unreachable (invariant 4 — a scan must still run with Ollama off).
     generator = None
+    repair_loop = None
     effective_mode = payload_mode
     if payload_mode in ("ai", "both"):
         ai_client = OllamaClient.from_settings(settings)
         if await ai_client.available():
             generator = PayloadGenerator(ai_client, temperature=settings.temperature_payload)
+            repair_loop = RepairLoop(ai_client, temperature=settings.temperature_payload)
         else:
             effective_mode = "static"
 
@@ -155,6 +158,7 @@ async def scan(
             sessions=sessions,
             payload_mode=effective_mode,
             payload_generator=generator,
+            repair_loop=repair_loop,
         )
         scanners = build_scanners(context)  # discover + instantiate every registered scanner
 

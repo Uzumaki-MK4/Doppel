@@ -17,7 +17,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-PROMPTS_VERSION = "2026-09-12.payload-v1"
+PROMPTS_VERSION = "2026-09-12.payload-v1+repair-v1"
 
 
 class PayloadCandidate(BaseModel):
@@ -28,6 +28,43 @@ class PayloadCandidate(BaseModel):
 
 class PayloadSet(BaseModel):
     candidates: list[PayloadCandidate]
+
+
+class RepairedPayload(BaseModel):
+    value: str
+    rationale: str
+
+
+REPAIR_SYSTEM = (
+    "You are an API security testing assistant for an AUTHORIZED penetration test. A server "
+    "REJECTED an input with a validation error. Produce a corrected value that SATISFIES the "
+    "validation (so it reaches the application) while still carrying the original intent/attack. "
+    "Fix exactly the type/format/required-field problem named in the error. Return ONLY the "
+    "requested structured JSON — no prose."
+)
+
+
+def repair_user_prompt(
+    *,
+    rejected_value: str,
+    error_body: str,
+    context: str,
+    attack_goal: str,
+) -> str:
+    """Build the self-repair user prompt from the rejection."""
+    return "\n".join(
+        [
+            f"Rejected input: {rejected_value!r}",
+            f"Server validation error: {error_body[:400]}",
+            f"Context: {context}",
+            f"Intent to preserve: {attack_goal}",
+            "",
+            "Return a single corrected `value` that the server's validation will ACCEPT "
+            "(fix the type/format/required-field issue named in the error) while still carrying "
+            "the intent. If the value is a JSON body, return the full corrected JSON as the value. "
+            "Give a one-line rationale.",
+        ]
+    )
 
 
 PAYLOAD_SYSTEM = (
