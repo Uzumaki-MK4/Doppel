@@ -39,6 +39,53 @@ def _bola_finding_id(endpoint: Endpoint, object_id: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", raw).strip("-")
 
 
+def bola_finding(triple, decision, weights: dict[str, float]) -> Finding | None:
+    """Assemble one scored BOLA Finding from an adjudicated triple.
+
+    Returns None if the oracle cleared the access (not a leak). Shared by the
+    VAmPI auto-discovery path (`find_bola_findings`) and any caller that supplies
+    triples another way (e.g. a target whose ownership can't be auto-discovered);
+    the gate/oracle/signal/confidence logic is identical regardless of source.
+    """
+    if not decision.is_leak:
+        return None
+    signals = compute_signals(triple, decision.oracle_verdict)
+    endpoint = triple.object_endpoint
+    # Public endpoints (no security) leak by design -> lower severity, not suppressed.
+    severity = Severity.HIGH if endpoint.security else Severity.MEDIUM
+    ai_trace = None
+    if decision.trace is not None:
+        ai_trace = AITrace(
+            model=decision.trace["model"],
+            seed=decision.trace["seed"],
+            temperature=decision.trace["temperature"],
+            prompt=decision.trace["prompt"],
+            raw_response=decision.trace["raw_response"],
+            signals=signals,
+        )
+    public = " (public endpoint)" if not endpoint.security else ""
+    return Finding(
+        id=_bola_finding_id(endpoint, triple.a_object_id),
+        title=f"BOLA: User B can read User A's object via {endpoint.method} {endpoint.path}{public}",
+        scanner="bola",
+        endpoint=endpoint,
+        severity=severity,
+        owasp_id="API1:2023",
+        confidence=confidence(signals, weights),
+        description=(
+            f"User B accessed User A's object (id={triple.a_object_id!r}) and received A's "
+            f"data. Leaked fields: {decision.leaked_fields or 'see response body'}. "
+            f"Oracle: {decision.reasoning}"
+        ),
+        remediation=(
+            "Enforce object-level authorization: verify the authenticated caller owns or "
+            "is permitted to access the requested object."
+        ),
+        evidence=triple.b_cross_access,
+        ai_trace=ai_trace,
+    )
+
+
 async def find_bola_findings(
     engine: HttpEngine,
     base_url: str,
@@ -54,45 +101,9 @@ async def find_bola_findings(
     findings: list[Finding] = []
     for triple in triples:
         decision = await oracle.adjudicate(triple)
-        if not decision.is_leak:
-            continue
-        signals = compute_signals(triple, decision.oracle_verdict)
-        endpoint = triple.object_endpoint
-        # Public endpoints (no security) leak by design -> lower severity, not suppressed.
-        severity = Severity.HIGH if endpoint.security else Severity.MEDIUM
-        ai_trace = None
-        if decision.trace is not None:
-            ai_trace = AITrace(
-                model=decision.trace["model"],
-                seed=decision.trace["seed"],
-                temperature=decision.trace["temperature"],
-                prompt=decision.trace["prompt"],
-                raw_response=decision.trace["raw_response"],
-                signals=signals,
-            )
-        public = " (public endpoint)" if not endpoint.security else ""
-        findings.append(
-            Finding(
-                id=_bola_finding_id(endpoint, triple.a_object_id),
-                title=f"BOLA: User B can read User A's object via {endpoint.method} {endpoint.path}{public}",
-                scanner="bola",
-                endpoint=endpoint,
-                severity=severity,
-                owasp_id="API1:2023",
-                confidence=confidence(signals, weights),
-                description=(
-                    f"User B accessed User A's object (id={triple.a_object_id!r}) and received A's "
-                    f"data. Leaked fields: {decision.leaked_fields or 'see response body'}. "
-                    f"Oracle: {decision.reasoning}"
-                ),
-                remediation=(
-                    "Enforce object-level authorization: verify the authenticated caller owns or "
-                    "is permitted to access the requested object."
-                ),
-                evidence=triple.b_cross_access,
-                ai_trace=ai_trace,
-            )
-        )
+        finding = bola_finding(triple, decision, weights)
+        if finding is not None:
+            findings.append(finding)
     return findings
 
 # on_progress(current_index, total, description)

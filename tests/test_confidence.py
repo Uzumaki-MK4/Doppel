@@ -125,3 +125,30 @@ def test_find_bola_findings_builds_scored_finding(tmp_path):
     assert f.ai_trace is not None
     assert len(f.ai_trace.signals) >= 4        # >= 4 measurable signals (done-condition)
     assert f.evidence.curl_repro               # every finding carries evidence
+
+
+def test_opaque_id_bola_is_caught_by_fixed_gate(tmp_path):
+    """crAPI-style: the object id (a uuid) is NOT echoed in the response body.
+    The D21 gate fix (removed the id-absent clear) ensures this still reaches the
+    oracle; id_echo is 0 but the finding fires on the other signals + oracle."""
+    from apiguard.ai.oracle import BolaOracle, gate
+
+    uuid = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
+    a_loc = '{"latitude": 12.34, "longitude": 56.78, "full_address": "A home"}'   # A's data, no uuid
+    b_loc = '{"latitude": 98.76, "longitude": 54.32, "full_address": "B home"}'   # B's own
+    triple = AccessTriple(
+        object_endpoint=Endpoint(path="/api/v2/vehicle/{vehicleId}/location", method="GET",
+                                 parameters=[], request_body_schema=None, security=["bearerAuth"]),
+        a_object_id=uuid, a_access=_ev(200, a_loc), b_cross_access=_ev(200, a_loc), b_control=_ev(200, b_loc),
+    )
+    # OLD gate would have cleared this (uuid absent from body); the fix escalates it.
+    assert gate(triple)[0] == "ambiguous"
+
+    signals = compute_signals(triple, oracle_verdict=1.0)
+    assert signals["id_echo"] == 0.0          # opaque id not echoed
+    assert len(signals) == 5                  # still >=4 measurable signals
+
+    oracle = BolaOracle(OllamaClient(model="m", seed=1, log_dir=str(tmp_path),
+                        client=FakeOllama('{"is_leak": true, "leaked_fields": ["full_address"], "reasoning": "B got A location"}')))
+    d = asyncio.run(oracle.adjudicate(triple))
+    assert d.is_leak is True and d.called_llm is True
