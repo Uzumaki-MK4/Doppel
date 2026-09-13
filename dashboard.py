@@ -25,8 +25,7 @@ ROOT = Path(__file__).resolve().parent
 BENCH = ROOT / "benchmark"
 RESULTS = BENCH / "results"
 
-# Canonical arm order for the ablation (baseline.json is the D12 historical twin
-# of static and is left out of the headline table to avoid a duplicate row).
+# Canonical arm order for the ablation.
 ARM_ORDER = ["static", "ai", "ai_repair", "full", "zap", "crapi"]
 ARM_LABEL = {
     "static": "Static payloads",
@@ -230,8 +229,8 @@ def main() -> None:  # pragma: no cover - exercised by `streamlit run`, not pyte
             "- **Reproducible** — every LLM call pins a seed; each result file records model + seed.\n\n"
             "### Result\n"
             "On VAmPI, the Full engine finds **8/12** known vulns at **1.00** precision — the three "
-            "the baseline misses are all **authorization** flaws (book-secret BOLA, public-user BOLA, "
-            "`_debug` BFLA). OWASP ZAP finds **2/12**. Author: Mayurdhvajsinh."
+            "the baseline misses are all **authorization / data-exposure** flaws (book-secret BOLA, "
+            "public-user BOLA, `_debug` BFLA). OWASP ZAP finds **2/12**. Author: Mayurdhvajsinh."
         )
 
 
