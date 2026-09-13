@@ -537,6 +537,34 @@ One short entry per working day: what was built, what broke, what was decided.
 
 **Next** — Day 25: `benchmark/ground_truth.yaml` + `run_eval.py` (precision/recall/F1 per arm).
 
+---
+
+## Day 25 — 2026-09-13 — the benchmark yardstick (ground truth + run_eval)
+
+**What I set out to do**
+- Done-when: one command prints precision/recall/F1. The real work is building an HONEST ground truth (the recall denominator must include vulns the tool can't detect) and a matcher that joins findings to known vulns on the RIGHT keys.
+
+**Building the ground truth (5-agent workflow, then I verified)**
+- Fanned out 4 enumeration angles (VAmPI source-read, VAmPI live-probe, crAPI, APIGuard detector-surface) + a completeness critic. The critic was the star: it grounded against the actual `run_eval` matcher and the real result JSONs and caught every trap — `Finding.scanner` is `jwt` not the module name `jwt_attacks`; jwt/rate_limit are GLOBAL findings (reported on an incidental endpoint) so they must join on scanner alone; the two misconfig globals share path "/" so they join by `id_contains`; and I had to INCLUDE the MEDIUM `GET /users/v1/{username}` bola or the Full arm's real finding would score as a false positive.
+- Integrity: agents propose, I verify. I independently re-probed VAmPI's 4 false-negatives — mass-assignment (registered admin:true -> /me admin:true), unauthorized password change (name1 reset name2's password, old fails / new works), enumeration (distinct login messages), RegexDOS (email endpoint reachable). Every ground-truth entry is live-verified.
+
+**The matcher (`run_eval.Match`)**
+- Predicates {scanner, path, method, id_contains, path_contains}; ALL present ones must hold; `owasp_id` is deliberately NOT a predicate (the tool maps SQLi to API8; keying on owasp would un-match a real detection). Scoring: TP = known vulns matched (each once), FP = findings matching nothing, FN = known vulns matched by nothing. `detectable:false` entries have no matcher and are always FN — that is what keeps recall honest. run_eval warns loudly if one finding matches >1 entry (double-count guard).
+
+**Result (`python benchmark/run_eval.py`)**
+| Arm | Target | Known | TP | FP | FN | Prec | Recall | F1 |
+|---|---|---|---|---|---|---|---|---|
+| baseline/static/ai/ai_repair | vampi | 12 | 5 | 0 | 7 | 1.00 | 0.42 | 0.59 |
+| **full** | vampi | 12 | **8** | 0 | 4 | **1.00** | **0.67** | **0.80** |
+| crapi | crapi | 5 | 1 | 0 | 4 | 1.00 | 0.20 | 0.33 |
+- The Full arm detects exactly the three the baseline can't — `bola-book-secret`, `bola-user-record`, `bfla-debug-dump` — a **+0.25 recall lift at perfect precision**. That jump is the whole thesis: a semantic BOLA/BFLA engine finds 200-OK vulns status/error scanners are blind to. All arms honestly miss the 4 VAmPI vulns APIGuard has no detector for.
+- `pytest -q` -> **122 passed** (+9 in tests/test_run_eval.py).
+
+**Most likely to break next (D26)**
+- The static/ai/ai_repair JSONs' `requests_sent` is STALE (pre-D22 GET-only). The P/R/F1 are already stable (finding counts unchanged) but the Requests column must be re-measured before the final table. Add ZAP as an external baseline arm. A fuller crAPI arm needs the crAPI AuthFlow wired as a scannable target (the driver only covers vehicle location).
+
+**Next** — Day 26: full ablation run, 4 arms + ZAP baseline, fill the Section-1 table with fresh numbers.
+
 
 
 
