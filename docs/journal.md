@@ -463,6 +463,32 @@ One short entry per working day: what was built, what broke, what was decided.
 
 **Next** — Day 22: `scoring/confidence.py` (5 signals + weighted confidence + Finding).
 
+## Day 22 — 2026-09-13 — BOLA confidence signals + full engine wired
+
+**D21 review folded in first** (separate fix commit): removed the id-absent gate clear (dropped real URL-only-id leaks), hardened the oracle prompt vs injection (fence + untrusted framing; residual risk documented), widened truncation 1200->4000, narrowed the oracle except.
+
+**Built**
+- `apiguard/scoring/confidence.py`: the 5 Section-5 signals (id_echo, field_overlap = Jaccard of top-level keys, body_divergence vs B's control, status_match, oracle_verdict) + `confidence()` as a weight-normalised mean over the PRESENT signals.
+- `apiguard/runner.py`: `find_bola_findings` (triples -> gate/oracle -> signals -> confidence -> Finding, API1:2023, HIGH / public MEDIUM, AITrace = oracle trace + signals) + `--bola` wiring; re-authenticates before the BOLA phase.
+- `apiguard/cli.py`: `--bola/--no-bola`.
+- `tests/test_confidence.py`: 4 (signals full/partial, confidence normalisation, full BOLA finding scored from >=4 signals).
+
+**Two integration bugs found + fixed (live debugging)**
+- BOLA phase produced 0 findings in a real scan though it worked in isolation. Root cause: VAmPI `GET /createdb` is a DB-RESET endpoint; the misconfig scanner probes it and wiped the registered users, so the pre-scan sessions were stale. Fix: re-authenticate before BOLA.
+- While tracing it: injection was probing DELETE/PUT path params with tautology payloads = destructive (mass DELETE/UPDATE). Fixed injection to GET-only (safe; VAmPI SQLi still found).
+
+**Verified — Day 22 done-condition met**
+- Live: `apiguard scan --bola` -> 7 findings incl. 2 BOLA, each scored from 5 signals: HIGH GET /books/v1/{book_title} conf 0.81; MEDIUM GET /users/v1/{username} (public) conf 0.81. `benchmark/results/full.json` saved.
+- `pytest -q` -> 107 passed.
+
+**Decided** — see BRAIN.md Section 9 (weight-normalised confidence; injection GET-only safety; BOLA re-auth).
+
+**Most likely to break next**
+- D23 `engines/bfla.py`: identifying privileged endpoints and probing as the low-priv user, reported SEPARATELY from BOLA. VAmPI's `/users/v1/_debug` (public, dumps all users incl. password hashes) is the obvious BFLA/excessive-data target; admin-path detection is the general case.
+
+**Next** — Day 23: `engines/bfla.py`.
+
+
 
 
 
