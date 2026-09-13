@@ -565,6 +565,29 @@ One short entry per working day: what was built, what broke, what was decided.
 
 **Next** — Day 26: full ablation run, 4 arms + ZAP baseline, fill the Section-1 table with fresh numbers.
 
+---
+
+## Day 26 — 2026-09-14 — the result: the ablation table, filled
+
+**What I set out to do**
+- Fill the Section-1 table with real numbers: re-measure the 4 APIGuard arms (request counts were stale after the D22 GET-only change) and add OWASP ZAP as an external baseline.
+
+**The 4 APIGuard arms (nested capability ladder)**
+- static / ai / ai+repair / full, each adding one capability, so a recall delta attributes to that capability. Fresh VAmPI runs (reset before each): static 5 findings/71 req, ai 5/63, ai+repair 5/63, full 8/82. Confirmed via `run_eval`: static/ai/ai+repair prec 1.00 recall 0.42 (5/12); **full prec 1.00 recall 0.67 (8/12)** — the BOLA/BFLA engine adds book-secret BOLA + public-user BOLA + `_debug` BFLA. AI matches static recall at ~11% fewer requests; repair fired 0 extra requests on VAmPI (honest — its payoff is typed crAPI fields, not VAmPI).
+
+**OWASP ZAP (the external baseline) — and what it took**
+- Ran ZAP in Docker (`ghcr.io/zaproxy/zaproxy:stable`, spec-driven `zap-api-scan.py`) against VAmPI — the fair apples-to-apples (same OpenAPI spec, active scanning). Three real gotchas, now in BRAIN.md §9: the report needs `/zap/wrk` mounted AND world-writable; VAmPI's `servers:[{url:""}]` makes ZAP 404 every path (fixed by feeding a local spec with the base URL rewritten — `-O` did not fix it); Git Bash needs `MSYS_NO_PATHCONV=1` for container paths.
+- Scored ZAP by the IDENTICAL harness via `benchmark/zap_adapt.py` (ZAP alert -> APIGuard match keys; every alert's disposition printed for audit). **ZAP: prec 0.50, recall 0.17 (2/12)** — it finds only missing-headers + version-disclosure. It MISSES all BOLA/BFLA/jwt/rate-limit, and it missed the SQLi too (its active SQLi scanner never fired on the injectable param; it only passively saw SQL in `/createdb`'s 500). Fairness: ZAP's real-but-out-of-scope alerts (SQL/error disclosure on /createdb) are reported but NOT counted as FP — only genuine noise (a bare 500 flagged as an alert, "unexpected content-type") is FP.
+
+**The headline (measured, not asserted)**
+- APIGuard Full nearly **quadruples ZAP's recall (0.67 vs 0.17) at perfect precision**. ZAP literally retrieved the `_debug` password dump and cross-user data and flagged nothing — because it cannot reason about authorization. That gap is the entire project thesis, now a number.
+- `pytest -q` -> **126 passed** (+4 in tests/test_zap_adapt.py). Raw ZAP report committed as `benchmark/zap_report.json` (evidence).
+
+**Most likely to break next**
+- D27 report generator: the BOLA findings carry an `ai_trace` (model/seed/temp/signals/prompt) — the report must surface it (that explainability is a selling point). The crapi.json arm is a single-endpoint validation; a fuller crAPI arm remains optional.
+
+**Next** — Day 27: HTML report generator incl. the AI trace; `scan --report out.html`.
+
 
 
 

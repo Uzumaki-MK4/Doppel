@@ -37,13 +37,15 @@
 
 **What success looks like at the end:** not a demo, a *result*. A table like this:
 
-| Arm | Recall vs ground truth | False positives | Requests sent |
-|---|---|---|---|
-| Static wordlist payloads | ? / 11 | ? | ? |
-| AI-generated payloads | ? / 11 | ? | ? |
-| AI + self-repair | ? / 11 | ? | ? |
-| Full (incl. BOLA engine) | ? / 11 | ? | ? |
-| OWASP ZAP (external baseline) | ? / 11 | ? | ? |
+| Arm | Recall vs ground truth | Precision | False positives | Requests sent |
+|---|---|---|---|---|
+| Static wordlist payloads | 5/12 (0.42) | 1.00 | 0 | 71 |
+| AI-generated payloads | 5/12 (0.42) | 1.00 | 0 | 63 |
+| AI + self-repair | 5/12 (0.42) | 1.00 | 0 | 63 |
+| **Full (incl. BOLA engine)** | **8/12 (0.67)** | **1.00** | **0** | 82 |
+| OWASP ZAP (external baseline) | 2/12 (0.17) | 0.50 | 2 | n/a |
+
+*(VAmPI, measured D26 2026-09-14; `python benchmark/run_eval.py`. crAPI second target: Full engine 1/5 (0.20) recall, 1.00 precision — a single-endpoint BOLA validation. The Full arm nearly QUADRUPLES ZAP's recall at perfect precision: the BOLA/BFLA engine finds the 3 authorization vulns — book-secret BOLA, public-user BOLA, `_debug` BFLA — that ZAP misses entirely even though it retrieved the password dump and cross-user data. AI matches static recall at ~11% fewer requests. ZAP also missed the SQLi: its active SQLi scanner never fired on the injectable param; it only passively noticed SQL leaking from `/createdb`'s 500.)*
 
 If we reach week 5 with a working tool but no filled-in table, the project has failed at its main goal.
 
@@ -293,7 +295,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 ### Week 5 — Proof, polish, presentation
 - [x] **D25** `benchmark/ground_truth.yaml` + `run_eval.py`. *Done when: one command prints precision/recall/F1.* — **DONE 2026-09-13, verified (`python benchmark/run_eval.py` prints a rich P/R/F1 table over all arm JSONs. VAmPI baseline/static/ai/ai_repair: prec 1.00 recall 0.42 (5/12); FULL: prec 1.00 recall 0.67 (8/12) — the BOLA/BFLA engine is the +0.25 recall lift at 0 FP. crapi: prec 1.00 recall 0.20 (1/5, single-endpoint validation). 122 tests pass. Ground truth = 12 VAmPI + 5 crAPI vulns, every entry live-verified).**
-- [ ] **D26** Full ablation run, 4 arms + ZAP baseline. *Done when: the Section 1 table is filled in with real numbers.*
+- [x] **D26** Full ablation run, 4 arms + ZAP baseline. *Done when: the Section 1 table is filled in with real numbers.* — **DONE 2026-09-14, verified (Section 1 table filled: re-measured static/ai/ai+repair/full on VAmPI with fresh request counts; ran OWASP ZAP (docker, spec-driven api-scan) and adapted its real report via `benchmark/zap_adapt.py`. Full 8/12 recall @1.00 prec vs ZAP 2/12 @0.50 vs static 5/12 @1.00. 126 tests pass).**
 - [ ] **D27** HTML report generator incl. AI trace. *Done when: `--report out.html` produces something presentable.*
 - [ ] **D28** Streamlit dashboard, cassette-backed. *Done when: full demo runs with wifi off.*
 - [ ] **D29** README, docstrings, cleanup, tag v1.0. *Done when: a stranger could clone and run it.*
@@ -307,18 +309,19 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 25 — complete and verified. (Week 5 — proof/polish — day 1 of 6.)
-**Last session:** 2026-09-13 — Day 25 benchmark harness (`ground_truth.yaml` + `run_eval.py`).
-**Completed:** D1–D25. Benchmark eval harness: `benchmark/ground_truth.yaml` (12 VAmPI + 5 crAPI known vulns, every entry live-verified against the running targets) + `benchmark/run_eval.py` (joins findings->ground truth, prints prec/recall/F1 per arm via rich). `python benchmark/run_eval.py` works. 122 tests pass.
+**Current day:** Day 26 — complete and verified. (Week 5 — proof/polish — day 2 of 6.)
+**Last session:** 2026-09-14 — Day 26 full ablation table + OWASP ZAP baseline.
+**Completed:** D1–D26. **The Section-1 ablation table is filled with real numbers** (see Section 1). Re-measured the 4 APIGuard arms fresh (static/ai/ai+repair/full) with current request counts; ran OWASP ZAP (docker `ghcr.io/zaproxy/zaproxy:stable`, spec-driven api-scan) and adapted its real JSON report into a scorable arm via `benchmark/zap_adapt.py`. 126 tests pass.
 **In progress:** nothing.
 **Blocked / broken:** nothing.
-**Next action:** Day 26 — full ablation table (Section 1) with real numbers + ZAP baseline. **MUST re-measure the VAmPI arms first**: the static/ai/ai_repair result JSONs' `requests_sent` is STALE (pre-D22 GET-only injection change) — re-run `apiguard scan --payloads {static,ai,both}` (+ `--bola` for the Full arm) and re-save the arm JSONs, THEN run `run_eval`. The P/R/F1 themselves are already stable (finding counts unchanged), only the Requests column is stale. Add ZAP as an external baseline arm. Optionally run a FULL crAPI scan (needs the crAPI AuthFlow wired as a scannable target) to lift crAPI beyond the single vehicle-BOLA row.
+**Next action:** Day 27 — HTML report generator (`apiguard/report/generator.py` + `template.html`), `scan --report out.html`, must include the AI trace (model/seed/temp/signals/prompt) for the BOLA findings. Done when: `--report out.html` produces something presentable.
 
-**D25 ablation numbers (P/R/F1 stable; Requests col stale for static/ai/ai_repair until D26):**
-- VAmPI known=12 (8 APIGuard-detectable + 4 inherent false-negatives: mass-assignment, unauthorized-password-change, user/password-enumeration, RegexDOS). crAPI known=5 (1 demonstrated: vehicle BOLA; 4 documented-but-not-yet-scanned).
-- baseline/static/ai/ai_repair (VAmPI): **prec 1.00, recall 0.42 (5/12), F1 0.59** — find jwt/sqli/2x misconfig/rate_limit, miss all BOLA/BFLA.
-- FULL (VAmPI): **prec 1.00, recall 0.67 (8/12), F1 0.80** — adds bola-book + bola-user-record + bfla-debug. The +0.25 recall at 0 FP IS the thesis (semantic 200-OK detection the baseline can't reach).
-- crapi: **prec 1.00, recall 0.20 (1/5), F1 0.33** — single-endpoint D24 validation, not a full scan.
+**D26 ablation (VAmPI, measured 2026-09-14) — THE RESULT:**
+- static/ai/ai+repair: **prec 1.00, recall 0.42 (5/12)**, req 71/63/63. AI beats static on requests (~11% fewer) at equal recall; repair fired 0 extra requests on VAmPI (its payoff is typed crAPI fields).
+- **FULL: prec 1.00, recall 0.67 (8/12)**, req 82 — the BOLA/BFLA engine adds book-secret BOLA + public-user BOLA + `_debug` BFLA. The +0.25 recall at 0 FP is the thesis, measured.
+- **ZAP: prec 0.50, recall 0.17 (2/12)** — finds only missing-headers + version-disclosure; MISSES all BOLA/BFLA/jwt/rate-limit AND the SQLi (its active SQLi scanner never fired on the injectable param; it only passively saw SQL in `/createdb`'s 500). It retrieved the `_debug` password dump and cross-user data and flagged nothing. 2 FP = noise alerts (bare 500 code, unexpected content-type); 2 real-but-out-of-scope alerts (SQL/error disclosure on /createdb) are reported, NOT counted as FP (they're real).
+- crapi: prec 1.00, recall 0.20 (1/5) — single-endpoint BOLA validation (D24), not a full scan.
+- HEADLINE: APIGuard Full nearly QUADRUPLES ZAP's recall (0.67 vs 0.17) at perfect precision. ZAP JSON has no request count -> shown n/a. ZAP command: `docker run --add-host=host.docker.internal:host-gateway -v zapwrk:/zap/wrk ghcr.io/zaproxy/zaproxy:stable zap-api-scan.py -t /zap/wrk/openapi_fixed.json -f openapi -J zap_report.json` (VAmPI's spec has `servers:[{url:""}]` so ZAP appends paths to the spec URL and 404s — MUST feed a local spec with servers set to the real base, and the /zap/wrk volume must be world-writable). Raw report: `benchmark/zap_report.json`.
 - Matcher facts (viva): global findings (jwt, rate_limit) join on `scanner` ALONE; the 2 misconfig globals share path "/" so join by `id_contains`; `owasp_id` is NOT a match predicate (SQLi is API8 in-tool). `Finding.scanner` is the bare literal (`jwt`, not `jwt_attacks`).
 
 **Full scan (VAmPI, verified D23):** 8 findings — CRITICAL jwt weak-secret + CRITICAL bfla _debug; HIGH bola book + HIGH injection sqli; MEDIUM bola users(public); 3x LOW misconfig/rate_limit. This is the "Full" arm for the Week-5 ablation table.
@@ -466,6 +469,10 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-13 — `detectable` flag splits the recall denominator honestly (D25): `detectable:true` = APIGuard demonstrably emits it (has a match block); `detectable:false` = a real known vuln with NO detector (no match block, always a false negative). Listing the 4 VAmPI blind spots (mass-assignment, unauthorized-password-change, enumeration, RegexDOS) as detectable:false is what makes recall meaningful — the Full arm's 0.67 is "8 of 12 real vulns", not "8 of the 8 we can find". Every ground-truth entry was independently verified against the live target before commit (integrity: a fabricated yardstick would invalidate every downstream number).
 - 2026-09-13 — Ground-truth enumeration ran as a 5-agent workflow (D25): 4 parallel angles (VAmPI source-read, VAmPI live-probe, crAPI, APIGuard detector-surface) + a completeness critic grounded against the REAL run_eval matcher and saved result files. The critic caught the traps (scanner='jwt' not 'jwt_attacks'; jwt/rate_limit are global→scanner-only; misconfig globals→id_contains; the omitted MEDIUM `GET /users/v1/{username}` bola that would otherwise score as an FP; the `_debug`/rate-limit duplicate candidates; a phantom verbose-error entry APIGuard never emits on VAmPI). Agents PROPOSE, the author VERIFIES and owns the artifact.
 - 2026-09-13 — crapi.json is scored as a targeted single-endpoint BOLA validation, not a full scan (D25) — only the vehicle-location BOLA is `detectable:true`; crAPI's other documented vulns (order/mechanic BOLA, jwt, mass-assignment) are honest false negatives (recall 0.20) because no full `apiguard scan` has run against crAPI yet. crAPI precision is the meaningful number (1.00); a fuller crAPI arm is optional D26 work (needs the crAPI AuthFlow wired as a scannable target, not just the driver).
+- 2026-09-14 — ZAP is scored by the IDENTICAL harness via an adapter, not judged by hand (D26) — `benchmark/zap_adapt.py` converts ZAP's real JSON report into a `ScanResult` whose findings carry APIGuard's match keys (ZAP alert -> scanner class; concrete URL normalised to the spec template), so `run_eval` scores it with the same ground-truth matcher. The one interpretive layer (`_classify`) prints every alert's disposition for full auditability. Reproducible and defensible; nothing hand-counted.
+- 2026-09-14 — ZAP's real-but-out-of-tracked-scope alerts are NOT counted as false positives (D26) — a THIRD bucket ("__oos__") for genuine findings outside the 12 tracked vulns (VAmPI's SQL/stack-trace disclosure on /createdb's 500). Counting a real finding as an FP would misrepresent ZAP; counting it as a TP would need it in the denominator. So they are reported and excluded from scoring. Only genuine noise (a bare 500 status flagged as an alert; "unexpected content-type") counts as ZAP FP. This keeps the comparison fair to the external baseline.
+- 2026-09-14 — Ablation arms are a nested capability ladder (D26): static = static payloads; ai = ai payloads; ai+repair = +self-repair; full = ai+repair+BOLA/BFLA engine. Each adds exactly one capability so a recall delta attributes to that capability. The engine delta (ai+repair 0.42 -> full 0.67) is the crown jewel's measured contribution. Honest nuances recorded: on VAmPI ai==ai+repair in both recall AND requests (repair fired 0 extra requests — no 400s to repair), and ai beats static only on requests (63 vs 71), not recall (VAmPI's vulns are all statically findable). A recall gap between ai and static needs a target with validation-gated params (crAPI).
+- 2026-09-14 — ZAP gotchas that cost real time, recorded so D28 demo/re-runs don't repeat them: (1) `-J`/file output REQUIRES `/zap/wrk` mounted AND world-writable (named volume is root-owned -> `chmod 777` it via a busybox one-shot). (2) VAmPI's OpenAPI `servers:[{url:""}]` makes ZAP resolve every path against the SPEC URL (`/openapi.json/users/...` -> 404, empty scan); `-O` override did NOT fix it — the reliable fix is to feed a LOCAL spec file with `servers` rewritten to the real base (`http://host.docker.internal:5000`). (3) Git Bash mangles container paths -> prefix docker commands with `MSYS_NO_PATHCONV=1`. The ZAP image is kept locally (3.7GB) for reproducibility.
 
 ---
 
