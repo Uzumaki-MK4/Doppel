@@ -1,0 +1,129 @@
+{
+  "target": "http://host.docker.internal:5000",
+  "spec_url": "http://host.docker.internal:5000 (OWASP ZAP baseline)",
+  "model": "owasp-zap",
+  "seed": 0,
+  "payload_mode": "static",
+  "endpoints": [],
+  "findings": [
+    {
+      "id": "zap-missing-security-headers",
+      "title": "ZAP: Content Security Policy (CSP) Header Not Set",
+      "scanner": "misconfig",
+      "endpoint": {
+        "path": "/",
+        "method": "GET",
+        "parameters": [],
+        "request_body_schema": null,
+        "security": [],
+        "operation_id": null
+      },
+      "severity": "medium",
+      "owasp_id": "API8:2023",
+      "confidence": 1.0,
+      "description": "<p>Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks, including Cross Site Scripting (XSS) and data injection attacks. These attacks are used for everything from data theft to site defacement or distribution of malware. CSP provides a set of standard HTTP headers that allow website owners to declare approved sources of content th",
+      "remediation": "<p>Ensure that your web server, application server, load balancer, etc. is configured to set the Content-Security-Policy header.</p>",
+      "evidence": {
+        "request_method": "GET",
+        "request_url": "http://host.docker.internal:5000/",
+        "request_headers": {},
+        "request_body": null,
+        "response_status": 0,
+        "response_headers": {},
+        "response_body": "<p>Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks, including Cross Site Scripting (XSS) and data injection attacks. These attacks are used for everything from data theft to site defacement or distribution of malware. CSP provides a set of standard HTTP headers that allow website owners to declare approved sources of content that browsers should be allowed to load on that page — covered types are JavaScript, CSS, HTML frames,",
+        "curl_repro": "# ZAP alert 10038 (Content Security Policy (CSP) Header Not Set)\ncurl http://host.docker.internal:5000/"
+      },
+      "ai_trace": null
+    },
+    {
+      "id": "zap-unmapped-a-server-error-response-code-was-returned-by-the-server",
+      "title": "ZAP: A Server Error response code was returned by the server",
+      "scanner": "zap-unmapped",
+      "endpoint": {
+        "path": "/",
+        "method": "GET",
+        "parameters": [],
+        "request_body_schema": null,
+        "security": [],
+        "operation_id": null
+      },
+      "severity": "low",
+      "owasp_id": "API8:2023",
+      "confidence": 1.0,
+      "description": "<p>A response code of 500 was returned by the server.</p><p>This may indicate that the application is failing to handle unexpected input correctly.</p><p>Raised by the 'Alert on HTTP Response Code Error' script</p>",
+      "remediation": "See ZAP report.",
+      "evidence": {
+        "request_method": "GET",
+        "request_url": "http://host.docker.internal:5000/",
+        "request_headers": {},
+        "request_body": null,
+        "response_status": 0,
+        "response_headers": {},
+        "response_body": "<p>A response code of 500 was returned by the server.</p><p>This may indicate that the application is failing to handle unexpected input correctly.</p><p>Raised by the 'Alert on HTTP Response Code Error' script</p>",
+        "curl_repro": "# ZAP alert 100000 (A Server Error response code was returned by the server)\ncurl http://host.docker.internal:5000/"
+      },
+      "ai_trace": null
+    },
+    {
+      "id": "zap-version-disclosure",
+      "title": "ZAP: Server Leaks Version Information via \"Server\" HTTP Response Header Field",
+      "scanner": "misconfig",
+      "endpoint": {
+        "path": "/",
+        "method": "GET",
+        "parameters": [],
+        "request_body_schema": null,
+        "security": [],
+        "operation_id": null
+      },
+      "severity": "low",
+      "owasp_id": "API8:2023",
+      "confidence": 1.0,
+      "description": "<p>The web/application server is leaking version information via the \"Server\" HTTP response header. Access to such information may facilitate attackers identifying other vulnerabilities your web/application server is subject to.</p>",
+      "remediation": "<p>Ensure that your web server, application server, load balancer, etc. is configured to suppress the \"Server\" header or provide generic details.</p>",
+      "evidence": {
+        "request_method": "GET",
+        "request_url": "http://host.docker.internal:5000/",
+        "request_headers": {},
+        "request_body": null,
+        "response_status": 0,
+        "response_headers": {},
+        "response_body": "<p>The web/application server is leaking version information via the \"Server\" HTTP response header. Access to such information may facilitate attackers identifying other vulnerabilities your web/application server is subject to.</p>",
+        "curl_repro": "# ZAP alert 10036 (Server Leaks Version Information via \"Server\" HTTP Response Header Field)\ncurl http://host.docker.internal:5000/"
+      },
+      "ai_trace": null
+    },
+    {
+      "id": "zap-unmapped-unexpected-content-type-was-returned",
+      "title": "ZAP: Unexpected Content-Type was returned",
+      "scanner": "zap-unmapped",
+      "endpoint": {
+        "path": "/",
+        "method": "GET",
+        "parameters": [],
+        "request_body_schema": null,
+        "security": [],
+        "operation_id": null
+      },
+      "severity": "low",
+      "owasp_id": "API8:2023",
+      "confidence": 1.0,
+      "description": "<p>A Content-Type of text/html was returned by the server.</p><p>This is not one of the types expected to be returned by an API.</p><p>Raised by the 'Alert on Unexpected Content Types' script</p>",
+      "remediation": "See ZAP report.",
+      "evidence": {
+        "request_method": "GET",
+        "request_url": "http://host.docker.internal:5000/",
+        "request_headers": {},
+        "request_body": null,
+        "response_status": 0,
+        "response_headers": {},
+        "response_body": "<p>A Content-Type of text/html was returned by the server.</p><p>This is not one of the types expected to be returned by an API.</p><p>Raised by the 'Alert on Unexpected Content Types' script</p>",
+        "curl_repro": "# ZAP alert 100001 (Unexpected Content-Type was returned)\ncurl http://host.docker.internal:5000/"
+      },
+      "ai_trace": null
+    }
+  ],
+  "requests_sent": 0,
+  "started_at": "2026-09-13T19:20:54.139404Z",
+  "finished_at": null
+}

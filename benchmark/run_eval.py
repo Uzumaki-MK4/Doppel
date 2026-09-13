@@ -245,9 +245,11 @@ def render(metrics: list[ArmMetrics], gt: GroundTruth, console: Console, details
 
     for m in metrics:
         known = len(gt.for_target(m.target))
+        # requests_sent==0 means "not tracked" (e.g. the external ZAP arm), not zero requests.
+        req = str(m.requests_sent) if m.requests_sent else "n/a"
         table.add_row(
             m.arm, m.target, str(known), str(m.tp), str(m.fp), str(m.fn),
-            _pct(m.precision), _pct(m.recall), _pct(m.f1), str(m.requests_sent),
+            _pct(m.precision), _pct(m.recall), _pct(m.f1), req,
         )
     console.print(table)
 
