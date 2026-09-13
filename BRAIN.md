@@ -288,7 +288,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - [x] **D20** Cross-access phase + control requests. *Done when: we have (A response, B cross-access, B control) triples.* — **DONE 2026-09-13, verified (2 triples on VAmPI; book triple shows B reading A's secret = the BOLA; 94 tests pass).**
 - [x] **D21** `ai/oracle.py`. *Done when: flags VAmPI's known BOLA, clears a legitimate access.* — **DONE 2026-09-13, verified (oracle flags the book BOLA is_leak=True [book_title,owner,secret]; clears B-reads-own-book is_leak=False; gate routes both; 102 tests pass).**
 - [x] **D22** `scoring/confidence.py` with the 5 signals. *Done when: every BOLA finding scored from >=4 measurable signals.* — **DONE 2026-09-13, verified (`scan --bola` -> 2 BOLA findings each scored from 5 signals; HIGH book conf 0.81, MEDIUM public users conf 0.81; 107 tests pass).**
-- [ ] **D23** `engines/bfla.py`. *Done when: BFLA probe runs and reports separately.*
+- [x] **D23** `engines/bfla.py`. *Done when: BFLA probe runs and reports separately.* — **DONE 2026-09-13, verified (CRITICAL BFLA on GET /users/v1/_debug, separate scanner=bfla/API5:2023; 112 tests pass). WEEK 4 COMPLETE.**
 - [ ] **D24** Run against crAPI, tune thresholds. *Done when: >=1 true BOLA on crAPI with <=2 false positives.*
 
 ### Week 5 — Proof, polish, presentation
@@ -307,12 +307,14 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 22 — complete and verified. (Week 4 — crown jewel — day 4 of 6.)
-**Last session:** 2026-09-13 — Day 22 `scoring/confidence.py` + full BOLA engine wired into scan.
-**Completed:** D1–D22. `scoring/confidence.py` (5 signals + weight-normalised confidence). `runner.find_bola_findings` (triples -> gate/oracle -> signals -> confidence -> Finding + AITrace). `cli --bola`. D21 oracle review fixes committed (gate id-absent removed, prompt hardened, except narrowed). 107 tests pass. Live: `scan --bola` -> 2 BOLA findings, 5 signals each.
+**Current day:** Day 23 — complete and verified. **WEEK 4 COMPLETE (crown jewel).** (Next: Week 5 — proof/polish.)
+**Last session:** 2026-09-13 — Day 23 `engines/bfla.py`.
+**Completed:** D1–D23. `engines/bfla.py` (`find_bfla_findings`: privileged-path detection + low-priv GET probe; CRITICAL if credential-leak, else HIGH; deterministic). Wired into the engines phase (runs even without Ollama), reported separately. 112 tests pass. Live: `scan --bola` -> CRITICAL BFLA on GET /users/v1/_debug + 2 BOLA.
 **In progress:** nothing.
 **Blocked / broken:** nothing.
-**Next action:** Day 23 — `engines/bfla.py`. Identify likely-privileged endpoints (path contains `admin`, or the spec's security differs) and probe them with the LOW-privilege user (B). Done when: BFLA probe runs and reports separately from BOLA. VAmPI: `/users/v1/_debug` (dumps ALL users incl. password hashes) is the BFLA target — it's PUBLIC (no auth) and leaks every user; also consider admin-only patterns. Report as a separate scanner/engine (owasp API5:2023). Reuse the two sessions.
+**Next action:** Day 24 — run the engine against **crAPI** and tune thresholds. Done when: >=1 true BOLA on crAPI with <=2 false positives. **BLOCKER RISK:** crAPI needs docker-compose + ~4GB RAM and several containers; the plan's risk table said test it EARLY, not on D24. FIRST STEP D24: try to bring crAPI up (`docker compose up` from a crAPI checkout). If it won't run on this machine, the plan's cut order explicitly allows **VAmPI alone as a valid evaluation target** — in that case, document crAPI as attempted-but-unavailable, and instead validate the gate fix (opaque-id BOLA) on VAmPI or a crafted target, and move to Week 5. Do NOT fabricate crAPI results.
+
+**Full scan (VAmPI, verified D23):** 8 findings — CRITICAL jwt weak-secret + CRITICAL bfla _debug; HIGH bola book + HIGH injection sqli; MEDIUM bola users(public); 3x LOW misconfig/rate_limit. This is the "Full" arm for the Week-5 ablation table.
 
 **BOLA engine facts (VAmPI, verified D22):**
 - `scan --bola` -> 2 findings: HIGH `GET /books/v1/{book_title}` (B reads A's book secret) conf 0.81; MEDIUM `GET /users/v1/{username}` public conf 0.81. Each scored from 5 signals. `AITrace.signals` holds the 5 signals (the explainability trace for D27).
@@ -442,6 +444,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-13 — Confidence is a WEIGHT-NORMALISED mean over the PRESENT signals (D22) — `sum(w_i*s_i)/sum(w_i)` — so a missing signal (no B-control, or gate-decided so no oracle_verdict) keeps the score in [0,1] instead of silently deflating it. BOLA findings currently always have all 5 (a leak comes only from the oracle). Confidence stays COMPUTED, never asked (invariant 5).
 - 2026-09-13 — **SAFETY: injection probes GET only (D22)** — a tautology/boolean payload (`' OR 1=1--`) on a state-changing path param is destructive (`DELETE FROM users WHERE ... OR 1=1` wipes rows). VAmPI's SQLi is on a GET, still found. Testing write-endpoint SQLi safely needs error-only/OAST probes (out of scope for the compressed Week-2 scanner). This also lowered request counts (D17/D18 JSONs stale -> re-measure D26).
 - 2026-09-13 — BOLA phase RE-AUTHENTICATES right before running (D22) — earlier scanners can disturb target state; specifically VAmPI's `GET /createdb` is a DB-reset endpoint that the misconfig scanner probes, wiping the registered users and invalidating the scan's start-of-run sessions. Re-`identity.setup()` re-registers + re-logs-in for fresh sessions. General principle: the BOLA engine owns its own fresh identity/objects rather than trusting pre-scan state.
+- 2026-09-13 — BFLA is keyword-based privileged-endpoint detection + low-priv GET probe (D23) — deterministic (no oracle, runs without Ollama). Privileged = a path segment containing admin/_debug/debug/internal/manage/root/superuser/... Only GET is probed (never trigger a privileged write). Flag if the low-priv user gets 2xx-with-data; CRITICAL if the body leaks credential-like markers (password/secret/token/hash/...), else HIGH. Runs in the same engines phase as BOLA but reports separately (scanner=bfla, API5:2023). FP guard: a 403/401 (authz working) is NOT flagged.
 
 ---
 

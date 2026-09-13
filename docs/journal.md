@@ -488,6 +488,29 @@ One short entry per working day: what was built, what broke, what was decided.
 
 **Next** — Day 23: `engines/bfla.py`.
 
+## Day 23 — 2026-09-13 — BFLA engine (WEEK 4 DONE)
+
+**Explored first (live)**
+- VAmPI `GET /users/v1/_debug` is PUBLIC (security=[]) and dumps ALL users with plaintext `password` + email + admin flag. The BFLA / excessive-data target.
+
+**Built**
+- `apiguard/engines/bfla.py`: `find_bfla_findings` -- privileged-path detection (segment contains admin/_debug/internal/manage/...), probe as the low-privilege user B (GET only). 2xx-with-data from a privileged function = BFLA (API5:2023); CRITICAL if the body leaks credential markers, else HIGH. Deterministic (no oracle).
+- `runner.py`: BFLA runs in the engines phase (before the Ollama check, so it works without Ollama), reported separately from BOLA.
+- `tests/test_bfla.py`: 5 (privileged detection; credential-leak CRITICAL; forbidden not flagged; accessible-non-sensitive HIGH; non-privileged skipped).
+
+**Verified — Day 23 done-condition met; WEEK 4 COMPLETE**
+- Live: `apiguard scan --bola` -> CRITICAL BFLA on GET /users/v1/_debug (conf 0.95), reported alongside the 2 BOLA findings. Separate scanner (bfla / API5:2023).
+- `pytest -q` -> 112 passed.
+
+**Week 4 retro (the crown jewel)**
+- BOLA engine: resource discovery (owned objects) -> cross-access triples -> deterministic gate -> LLM oracle (ambiguous only) -> 5-signal confidence -> Finding+AITrace. BFLA engine: privileged-function access by low-priv. Full scan on VAmPI: 8 findings incl. 2 CRITICAL, with the semantic BOLA/BFLA that status/error scanners miss. Adversarial review hardened the oracle/gate. Two real integration bugs (createdb reset, destructive injection) found and fixed.
+
+**Most likely to break next**
+- D24 crAPI: heavier setup (docker-compose, ~4GB RAM). If it won't run here, VAmPI alone is a valid target per the plan's cut order -- document and move on, do not fabricate.
+
+**Next** — Day 24: run against crAPI + tune thresholds (or document crAPI unavailability).
+
+
 
 
 
