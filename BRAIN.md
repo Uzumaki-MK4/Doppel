@@ -279,7 +279,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 ### Week 4 — BOLA/BFLA engine (PROTECT THIS WEEK)
 - [x] **D19** `engines/bola.py` resource discovery as User A. *Done when: we have IDs provably owned by A.* — **DONE 2026-09-12, verified (2 A-owned objects: seeded book + A's user record, A-access captured; 92 tests pass).**
-- [ ] **D20** Cross-access phase + control requests. *Done when: we have (A response, B cross-access, B control) triples.*
+- [x] **D20** Cross-access phase + control requests. *Done when: we have (A response, B cross-access, B control) triples.* — **DONE 2026-09-13, verified (2 triples on VAmPI; book triple shows B reading A's secret = the BOLA; 94 tests pass).**
 - [ ] **D21** `ai/oracle.py`. *Done when: flags VAmPI's known BOLA, clears a legitimate access.*
 - [ ] **D22** `scoring/confidence.py` with the 5 signals. *Done when: every BOLA finding scored from >=4 measurable signals.*
 - [ ] **D23** `engines/bfla.py`. *Done when: BFLA probe runs and reports separately.*
@@ -301,12 +301,12 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 19 — complete and verified. (Week 4 — crown jewel — day 1 of 6.)
-**Last session:** 2026-09-12 — Day 19 `engines/bola.py` resource discovery.
-**Completed:** D1–D19. `engines/bola.py`: `ResourceDiscoverer.discover()` (seed via POST-as-A + harvest by owner-field match; captures A's own access per owned id). 92 tests pass. Live: 2 A-owned objects discovered on VAmPI.
+**Current day:** Day 20 — complete and verified. (Week 4 — crown jewel — day 2 of 6.)
+**Last session:** 2026-09-13 — Day 20 BOLA cross-access phase (triples).
+**Completed:** D1–D20. `engines/bola.py`: `AccessTriple` + `probe_cross_access` + `collect_triples` (discover A-owned + B-owned, then B cross-accesses A's objects with a B-owned control per endpoint). Seed now fills string fields with owner-distinctive data. Also fixed a test writing to repo root. 94 tests pass. Live: 2 triples; book triple = B reads A's secret.
 **In progress:** nothing.
 **Blocked / broken:** nothing.
-**Next action:** Day 20 — `engines/bola.py` cross-access + control phase. For each OwnedObject (A's id), replay the matching GET as User B (cross-access) AND have B access B's OWN object (control). Produce triples (A's access [have it], B cross-access, B control). Done when: we have (A response, B cross-access, B control) triples. B needs B-owned objects too — reuse the discoverer with owner="userB" to get B's own ids for controls, or seed a B-owned book. Feed triples to the oracle (D21) + confidence (D22).
+**Next action:** Day 21 — `ai/oracle.py`. Apply the Section-5 BOLA ambiguity gate to each `AccessTriple` (cheap checks first: b_cross in 401/403/404 -> not a leak; b_cross.body == b_control.body -> not a leak; a_object_id not in b_cross.body -> probably not; else AMBIGUOUS -> call oracle). Oracle: prompt the model with A's + B's cross-access bodies (noise stripped), strict yes/no `is_leak` + `leaked_fields`, schema-constrained, temperature 0.0 (via `OllamaClient`, invariant 2/3/5). Done when: oracle flags VAmPI's known BOLA (the book) and CLEARS a legitimate access. Use the book triple (should flag) and craft/observe a legit access to clear (e.g. B's own control, or the public users read — decide if that's a leak: it IS a cross-user read but the endpoint is public; the oracle should judge on the DATA, and confidence/severity can down-weight public endpoints).
 
 **BOLA facts (VAmPI):**
 - Crown-jewel BOLA target: `GET /books/v1/{book_title}` returns `{book_title, owner, secret}` — the `secret` is owner-only; B reading A's book secret = the BOLA. A's seeded book: `apiguard_userA_book_title`.
@@ -419,6 +419,8 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — Fixed an XSS FALSE POSITIVE before it reached a result (D18): an AI payload with a quote triggered a 500 Werkzeug debug page that reflected the payload; the XSS detector fired on it. Reflection in a 5xx debug page IS the verbose-error misconfig (already flagged by misconfig), not reflected XSS — XSS detection now skips 5xx. Integrity: verified the finding, found it bogus, removed it rather than claim AI found 6 vs static 5.
 - 2026-09-12 — D18 honest win: AI arm beats static on REQUESTS (93 vs 128, ~27% fewer) at EQUAL recall (5/5) and 0 FP. This is the defensible AI-arm story for the report (efficiency via targeted, context-aware payloads); recall parity is because VAmPI's vulns are all statically findable.
 - 2026-09-12 — BOLA ownership is established two ways (D19): seed (POST-as-A creates an object A provably owns) and harvest (collection item whose owner field == A's username). Ownership detection is generic: an item is A's if any of its string values equals A's username. A's own access is captured per owned id as the cross-access baseline. Object endpoint = GET whose path ends in `/{id}`; collection = path minus that segment.
+- 2026-09-13 — Cross-access control is a B-owned object at the SAME endpoint (D20) — not a re-fetch of A's; the control shows what a LEGITIMATE B access to that resource type looks like, so `body_divergence(b_cross, b_control)` is a real signal. B's own ids come from re-running the discoverer with owner="userB". `_object_access` is shared so discovery and cross-access send byte-identical requests (only the auth header differs).
+- 2026-09-13 — Seed fills unconstrained string fields with owner-distinctive values `apiguard-<owner>-<field>` (D20) — so A's book secret ('apiguard-userA-secret') differs from B's ('apiguard-userB-secret'); a cross-user read then leaks the OTHER user's identifiable data, making the leak unambiguous for the oracle and giving real body-divergence. Formatted fields (e.g. email) keep the schema example to stay valid.
 
 ---
 
