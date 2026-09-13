@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import httpx
+
 from apiguard.ai.client import OllamaClient
 from apiguard.ai.prompts import ORACLE_SYSTEM, OracleVerdict, oracle_user_prompt
 from apiguard.engines.bola import AccessTriple
@@ -19,14 +21,19 @@ _REJECTED = (401, 403, 404)
 
 
 def gate(triple: AccessTriple) -> tuple[str, str]:
-    """Cheap deterministic checks. Returns ('not_leak'|'ambiguous', reason)."""
+    """Cheap deterministic checks. Returns ('not_leak'|'ambiguous', reason).
+
+    Only the two SAFE clears remain: a rejected cross-access, or one byte-identical
+    to B's own control. The Section-5 'id absent from body -> not_leak' clear was
+    REMOVED (D21 review): many endpoints carry the id only in the URL, so it
+    silently dropped real 200-OK leaks (crAPI). Id presence is instead a confidence
+    signal (`id_echo`), never a hard veto.
+    """
     cross = triple.b_cross_access
     if cross.response_status in _REJECTED:
         return ("not_leak", f"gate:rejected({cross.response_status})")
     if triple.b_control is not None and cross.response_body == triple.b_control.response_body:
         return ("not_leak", "gate:identical-to-control")
-    if triple.a_object_id not in cross.response_body:
-        return ("not_leak", "gate:id-absent")
     return ("ambiguous", "gate:ambiguous")
 
 
@@ -70,7 +77,10 @@ class BolaOracle:
                 temperature=self._temperature,
                 label="oracle",
             )
-        except Exception as exc:  # Ollama down mid-scan: degrade, do not crash (invariant 4)
+        except (ConnectionError, TimeoutError, OSError, httpx.HTTPError) as exc:
+            # Ollama down/unreachable mid-scan: degrade, do not crash (invariant 4).
+            # Narrow on purpose — a code defect (KeyError/AttributeError/...) must still
+            # surface rather than be masked as 'unavailable' (D21 review).
             return BolaDecision(
                 triple=triple,
                 is_leak=False,

@@ -61,8 +61,10 @@ def test_gate_clears_identical_to_control():
     assert gate(_triple(cross_body=B_OWN_BODY, control_body=B_OWN_BODY))[0] == "not_leak"
 
 
-def test_gate_clears_when_id_absent():
-    assert gate(_triple(cross_body='{"nothing": "here"}', a_id="bookA"))[0] == "not_leak"
+def test_gate_escalates_when_id_absent_but_status_ok():
+    # D21 review: id-absent is NO LONGER a hard clear (would drop URL-only-id leaks).
+    # It escalates to the oracle; id-presence is a confidence signal instead.
+    assert gate(_triple(cross_body='{"owner": "apiguard_a", "secret": "x"}', a_id="bookA"))[0] == "ambiguous"
 
 
 def test_gate_ambiguous_when_id_present_and_bodies_differ():

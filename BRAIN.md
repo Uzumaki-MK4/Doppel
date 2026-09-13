@@ -216,9 +216,15 @@ Only call the oracle when the cheap checks are inconclusive:
 ```
 if b_response.status in (401, 403, 404):        -> NOT a leak, no LLM call
 if b_response.body == b_control.body:            -> NOT a leak, no LLM call
-if a_object_id not in b_response.body:           -> probably not, no LLM call
 else:                                            -> AMBIGUOUS, call oracle
 ```
+
+**D21 review change (this supersedes the original 4th line):** the original gate had
+`if a_object_id not in b_response.body: -> NOT a leak` — REMOVED. Many endpoints carry
+the object id only in the URL (opaque ids), so that clear silently dropped real 200-OK
+BOLA leaks (crAPI). Id presence is now the `id_echo` CONFIDENCE signal, never a hard
+veto. The gate only clears on the two SAFE conditions above; everything else goes to
+the oracle. (See Section 9, 2026-09-13.)
 
 ### Confidence signals (scoring/confidence.py)
 
@@ -426,7 +432,8 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — BOLA ownership is established two ways (D19): seed (POST-as-A creates an object A provably owns) and harvest (collection item whose owner field == A's username). Ownership detection is generic: an item is A's if any of its string values equals A's username. A's own access is captured per owned id as the cross-access baseline. Object endpoint = GET whose path ends in `/{id}`; collection = path minus that segment.
 - 2026-09-13 — Cross-access control is a B-owned object at the SAME endpoint (D20) — not a re-fetch of A's; the control shows what a LEGITIMATE B access to that resource type looks like, so `body_divergence(b_cross, b_control)` is a real signal. B's own ids come from re-running the discoverer with owner="userB". `_object_access` is shared so discovery and cross-access send byte-identical requests (only the auth header differs).
 - 2026-09-13 — Seed fills unconstrained string fields with owner-distinctive values `apiguard-<owner>-<field>` (D20) — so A's book secret ('apiguard-userA-secret') differs from B's ('apiguard-userB-secret'); a cross-user read then leaks the OTHER user's identifiable data, making the leak unambiguous for the oracle and giving real body-divergence. Formatted fields (e.g. email) keep the schema example to stay valid.
-- 2026-09-13 — Oracle gate is strictly deterministic-first (D21): the LLM is called ONLY on 'ambiguous' triples; rejected(401/403/404)/identical-to-control/id-absent are cleared with no model call (invariant 4). Oracle output is a schema-constrained `OracleVerdict` (is_leak/leaked_fields/reasoning) at temp 0.0, pinned seed, think=False (invariants 2/3/5). Inconclusive (retries exhausted) AND Ollama-unavailable both degrade to is_leak=False (conservative; never crash a scan). The oracle verdict is ONE D22 signal, never the confidence itself (invariant 5).
+- 2026-09-13 — Oracle gate is strictly deterministic-first (D21): the LLM is called ONLY on 'ambiguous' triples; rejected(401/403/404)/identical-to-control are cleared with no model call (invariant 4). Oracle output is a schema-constrained `OracleVerdict` (is_leak/leaked_fields/reasoning) at temp 0.0, pinned seed, think=False (invariants 2/3/5). Inconclusive (retries exhausted) AND Ollama-unavailable both degrade to is_leak=False (conservative; never crash a scan). The oracle verdict is ONE D22 signal, never the confidence itself (invariant 5).
+- 2026-09-13 — **DEVIATION from Section-5 gate (D21 adversarial review, user-visible):** removed the `a_object_id not in b_body -> not_leak` gate clear. Review (8 confirmed findings) showed it drops real 200-OK BOLA on endpoints that carry the id only in the URL (opaque ids; crAPI). Fix is strictly SAFER (escalates more to the oracle, never clears more); id presence is now the `id_echo` confidence signal. Also hardened the oracle prompt (fence + untrusted-data framing, partial injection defence — residual risk is a DOCUMENTED limitation), widened truncation 1200->4000, and narrowed the oracle's except so code defects surface. Public-endpoint reads still flag as leaks (data-correct) and are down-weighted by severity at D22, not suppressed.
 
 ---
 
