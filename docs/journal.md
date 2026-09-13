@@ -649,6 +649,26 @@ One short entry per working day: what was built, what broke, what was decided.
 
 **Next** — Day 30 (final): demo recording + report writeup.
 
+---
+
+## Day 30 — 2026-09-14 — the writeup, and the finish line
+
+**What set out**
+- Done-when: video recorded, report drafted. I can't record the video, so I made the two things that make it trivial: a shot-by-shot **demo script** and a full **report**.
+
+**The report — and fact-checking my own numbers**
+- Wrote `docs/report.md` (abstract → problem → why status scanners miss BOLA → design/method → evaluation → limitations → conclusion → references) and designed a published HTML artifact of it ("The 200-OK Blind Spot"). Because a report is the single most fabrication-sensitive artifact in the project, I ran an **adversarial fact-check agent** over it: cross-check every number and method claim against `run_eval` output, the result JSONs, `ground_truth.yaml`, and the source.
+- Verdict: **no blockers, every headline number accurate.** It caught genuine precision issues I fixed: "authorization flaws" → "authorization / data-exposure flaws" (one of the three, the public `/users/v1/{username}` read, is PII over-exposure, not broken-authz); "active scanner never fired" → "produced no alert" (what we can actually observe); "~30 modules" → "two dozen"; and a §6 note that the offline cassette replay covers only the deterministic scanners. It also flagged that the cited `run_eval` command printed a stale 7th `baseline` row — so I removed `benchmark/results/baseline.json` (the D12 twin of static), and now the command reproduces the report's table exactly.
+
+**The demo script**
+- `docs/demo_script.md`: seven scenes with copy-paste commands, a **LIVE** path (VAmPI+Ollama) and an **OFFLINE** path (`scan --replay`, `run_eval`, dashboard) so the recording never depends on a flaky target or model drift. Verified the commands run.
+
+**The finish line**
+- **136 tests pass.** The three untouchable deliverables — the BOLA engine, the AI oracle, the benchmark harness — all shipped and, more importantly, **measured**: Full **8/12 (0.67) @ 1.00 precision** vs OWASP ZAP **2/12 (0.17)**, the entire gain being 200-OK authorization/data-exposure flaws; plus a real crAPI BOLA at 0.8547 confidence, 0 FP. Tagged v1.0.
+
+**Retrospective — did it meet its own bar?**
+- BRAIN.md §1 set the bar: "not a demo, a *result* … a filled-in table." The table is filled with real, reproduced, fact-checked numbers, and the headline (nearly 4× ZAP's recall at perfect precision, all from the flaws generic scanners are structurally blind to) *is* the thesis, measured. Integrity held throughout: no invented findings, honest limitations, and the one deviation from the plan (the gate fix) argued and documented. **30/30. Project complete.**
+
 
 
 
