@@ -75,7 +75,7 @@ def test_repair_gives_up_after_cap(tmp_path):
 
 
 @respx.mock
-def test_injection_repairs_a_rejected_payload():
+def test_injection_repairs_a_rejected_payload(tmp_path):
     """A payload that the server 400s gets repaired, then detection runs on the
     repaired (accepted) response."""
     from urllib.parse import unquote
@@ -96,7 +96,7 @@ def test_injection_repairs_a_rejected_payload():
         request_body_schema=None, security=[],
     )
     repair = RepairLoop(
-        OllamaClient(model="m", seed=1, log_dir=str("."), client=FakeOllama(['{"value": "FIXED", "rationale": "r"}']))
+        OllamaClient(model="m", seed=1, log_dir=str(tmp_path), client=FakeOllama(['{"value": "FIXED", "rationale": "r"}']))
     )
 
     async def go():

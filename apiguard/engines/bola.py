@@ -1,7 +1,6 @@
-"""BOLA engine — resource discovery (BRAIN.md D19). THE CROWN JEWEL (Week 4).
+"""BOLA engine — discovery + cross-access (BRAIN.md D19-D20). THE CROWN JEWEL.
 
-Phase 1 of BOLA/IDOR detection: establish object IDs that *provably belong to
-User A*, two ways:
+Phase 1 (D19) establishes object IDs that *provably belong to User A*, two ways:
 
 * seed — POST to a collection as A to create an object A owns;
 * harvest — GET the collection as A and keep items whose owner field equals A's
@@ -57,6 +56,17 @@ def _item_owned_by(item: object, username: str) -> bool:
     return isinstance(item, dict) and any(
         isinstance(v, str) and v == username for v in item.values()
     )
+
+
+async def _object_access(
+    engine: HttpEngine, base_url: str, obj_ep: Endpoint, id_param: str, object_id: str, headers: dict
+):
+    """GET a single object by id, with the given auth headers. Shared by discovery
+    and cross-access so both build the identical request."""
+    method, url, req_headers, query, body = build_request(
+        obj_ep, base_url.rstrip("/"), values={id_param: object_id}, headers=headers
+    )
+    return await engine.send(method, url, headers=req_headers, params=query, body=body)
 
 
 class ResourceDiscoverer:
@@ -132,6 +142,13 @@ class ResourceDiscoverer:
         body = _example_from_schema(post.request_body_schema)
         if not isinstance(body, dict):
             return None
+        # Fill unconstrained string fields with owner-distinctive values so the
+        # seeded object carries data identifiable as THIS owner's — a cross-user
+        # read then clearly leaks the other user's data (sharpens the BOLA signal).
+        props = (post.request_body_schema or {}).get("properties", {})
+        for field, spec in props.items():
+            if isinstance(spec, dict) and spec.get("type") == "string" and not spec.get("format"):
+                body[field] = f"apiguard-{self._owner_name}-{field}"
         object_id = f"apiguard_{self._owner_name}_{id_param}"
         body[id_param] = object_id
         exchange = await self._engine.send(
@@ -157,7 +174,87 @@ class ResourceDiscoverer:
         return ids
 
     async def _get_object(self, obj_ep: Endpoint, id_param: str, object_id: str, headers):
-        method, url, req_headers, query, body = build_request(
-            obj_ep, self._base, values={id_param: object_id}, headers=headers
+        return await _object_access(self._engine, self._base, obj_ep, id_param, object_id, headers)
+
+
+# --------------------------------------------------------------------------- #
+# Cross-access phase (BRAIN.md D20)
+# --------------------------------------------------------------------------- #
+@dataclass
+class AccessTriple:
+    """The three responses the BOLA gate/oracle compares (Section 5).
+
+    * a_access      — A accessing A's own object (the reference for what the data is).
+    * b_cross_access — the attacker (B) accessing A's object (the potential leak).
+    * b_control     — B accessing B's OWN object at the same endpoint (a legitimate
+      access baseline; None if B owns nothing of that type).
+    """
+
+    object_endpoint: Endpoint
+    a_object_id: str
+    a_access: Evidence
+    b_cross_access: Evidence
+    b_control: Evidence | None
+
+
+async def probe_cross_access(
+    engine: HttpEngine,
+    base_url: str,
+    sessions: dict[str, Session],
+    owned_a: list[OwnedObject],
+    owned_b: list[OwnedObject],
+    *,
+    attacker: str = "userB",
+) -> list[AccessTriple]:
+    """For each A-owned object, have the attacker (B) access it, plus a B-owned
+    control at the same endpoint. Produces (A, B-cross, B-control) triples."""
+    attacker_session = sessions.get(attacker) or next(iter(sessions.values()), None)
+    if attacker_session is None:
+        return []
+    attacker_headers = dict(attacker_session.headers)
+    base = base_url.rstrip("/")
+
+    # A B-owned object per endpoint path, for controls.
+    b_by_path: dict[str, OwnedObject] = {}
+    for owned in owned_b:
+        b_by_path.setdefault(owned.object_endpoint.path, owned)
+
+    triples: list[AccessTriple] = []
+    for oa in owned_a:
+        cross = await _object_access(
+            engine, base, oa.object_endpoint, oa.id_param, oa.object_id, attacker_headers
         )
-        return await self._engine.send(method, url, headers=req_headers, params=query, body=body)
+        control_ev: Evidence | None = None
+        b_obj = b_by_path.get(oa.object_endpoint.path)
+        if b_obj is not None:
+            control = await _object_access(
+                engine, base, b_obj.object_endpoint, b_obj.id_param, b_obj.object_id, attacker_headers
+            )
+            control_ev = control.evidence
+        triples.append(
+            AccessTriple(
+                object_endpoint=oa.object_endpoint,
+                a_object_id=oa.object_id,
+                a_access=oa.a_access,
+                b_cross_access=cross.evidence,
+                b_control=control_ev,
+            )
+        )
+    return triples
+
+
+async def collect_triples(
+    engine: HttpEngine,
+    base_url: str,
+    sessions: dict[str, Session],
+    endpoints: list[Endpoint],
+    *,
+    owner: str = "userA",
+    attacker: str = "userB",
+) -> list[AccessTriple]:
+    """Full D19+D20: discover owner's objects and attacker's controls, then probe."""
+    owned_a = await ResourceDiscoverer(engine, base_url, sessions, owner=owner).discover(endpoints)
+    owned_b = await ResourceDiscoverer(engine, base_url, sessions, owner=attacker).discover(endpoints)
+    return await probe_cross_access(
+        engine, base_url, sessions, owned_a, owned_b, attacker=attacker
+    )
