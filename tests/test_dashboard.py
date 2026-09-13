@@ -1,9 +1,9 @@
 """Tests for dashboard.py's pure helpers (Day 28).
 
 Only the non-Streamlit data-prep functions are tested (main() needs the Streamlit
-runtime). Importing dashboard is cheap: streamlit/pandas are imported inside main(),
-not at module top, and the `if __name__ == "__main__"` guard keeps main() from
-running on import. These exercise the committed result JSONs + ground truth.
+runtime). Importing dashboard is cheap: streamlit is imported inside main(), not at
+module top, and the `if __name__ == "__main__"` guard keeps main() from running on
+import. These exercise the committed result JSONs + ground truth.
 """
 
 import importlib.util

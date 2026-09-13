@@ -628,6 +628,27 @@ One short entry per working day: what was built, what broke, what was decided.
 
 **Next** — Day 29: README, docstrings, cleanup, tag v1.0.
 
+---
+
+## Day 29 — 2026-09-14 — v1.0: README, cleanup, tag
+
+**What set the agenda**
+- Done-when: a stranger could clone and run it. Fittingly, the day opened with a real one — I'd told the user to run `streamlit run dashboard.py` and it failed with "streamlit is not recognized", because the console scripts live in `.venv\Scripts` and aren't on the global PATH until the venv is activated. That gap is exactly what the README had to close.
+
+**Cleanup — a 4-agent audit workflow, grounded against the live tree**
+- 3 parallel auditors (core/scanners, ai/engines/report, benchmark/tests/packaging) + a synthesis critic that re-ran the whole clone→install→run path in a fresh venv. Verdict: **no unresolved stranger-blocker**. 19 raw items → I fixed 16 and the critic flagged 2 as false alarms (they were already fixed in the working tree, which post-dated the audit snapshot).
+- Fixes: dropped the **undeclared pandas** import from `dashboard.py` (it was only transitively present via streamlit) — since every value is 0–1, `st.progress` bars replace the charts and read more clearly, and `st.dataframe` takes list-of-dicts directly, so it's one *fewer* dependency, not one more. Added docstrings to every public class/function that lacked one; refreshed the Day-6-era module docstrings (cli/runner/injection/http_engine); removed an unused `import pytest`.
+- Re-recorded `cassettes/vampi/`: the D12 recording predated the D18 boolean-SQLi payloads, so `--replay` was hitting a cassette miss. Re-recorded a current static scan and **proved it offline** — `docker stop vampi`, then `scan --replay` → 5 findings.
+
+**README + packaging**
+- Full rewrite: the headline result table, how the BOLA engine works (gate → oracle → computed confidence), venv-aware setup/usage with the **Windows PATH note** (activate first, or full-path `.\.venv\Scripts\streamlit.exe`), reproducibility, the crAPI second target, project layout, acknowledgements. Verified `pip install -e ".[dev]"` clean and every declared dep imports. Bumped version to 1.0.0 and **tagged v1.0**.
+- `pytest -q` -> **136 passed**.
+
+**Most likely to break next**
+- D30 is presentation, not code. The demo should lean on the offline path (`scan --replay`, `run_eval`, dashboard) so it never depends on Ollama drift or a flaky live target; the live `--bola` scan is the wow moment when VAmPI+Ollama are up.
+
+**Next** — Day 30 (final): demo recording + report writeup.
+
 
 
 
