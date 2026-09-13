@@ -423,6 +423,25 @@ One short entry per working day: what was built, what broke, what was decided.
 
 **Next** — Day 20: `engines/bola.py` cross-access + control phase.
 
+## Day 20 — 2026-09-13 — BOLA cross-access phase (triples)
+
+**Built**
+- `apiguard/engines/bola.py`: `AccessTriple` (a_access, b_cross_access, b_control), `probe_cross_access` (B accesses each A-owned object + a B-owned control at the same endpoint), `collect_triples` (discover A + B owned, then probe). Shared `_object_access` helper so discovery and cross-access build identical requests.
+- Seed improvement: unconstrained string fields set to owner-distinctive values (`apiguard-<owner>-<field>`), so a cross-user read leaks the OTHER user's identifiable data.
+- Hygiene: fixed `test_repair.py` writing a log to the repo root (log_dir -> tmp_path); removed the stray `0001-repair.json`.
+- `tests/test_bola_crossaccess.py`: 2 (cross-access leak triple; control absent when attacker owns nothing).
+
+**Verified — Day 20 done-condition met**
+- Live (VAmPI): 2 triples. GET /books/v1/{book_title}: A access = A's book (secret apiguard-userA-secret); B cross-access = B reads A's book (owner apiguard_a, secret apiguard-userA-secret) = THE BOLA; B control = B's own book (secret apiguard-userB-secret). Also a users triple (public email read, for the oracle to judge).
+- `pytest -q` -> 94 passed.
+
+**Decided** — see BRAIN.md Section 9 (control = B-owned object at same endpoint; distinctive seed data).
+
+**Most likely to break next**
+- D21 `ai/oracle.py`: the Section-5 ambiguity gate (only call the LLM when cheap checks are inconclusive) + a strict schema-constrained yes/no oracle at temp 0.0. Must FLAG the book BOLA and CLEAR a legit access. The public users read is the tricky case.
+
+**Next** — Day 21: `ai/oracle.py` (BOLA ambiguity gate + response oracle).
+
 
 
 
