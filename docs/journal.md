@@ -608,6 +608,26 @@ One short entry per working day: what was built, what broke, what was decided.
 
 **Next** — Day 28: Streamlit dashboard, cassette-backed, full demo runs with wifi off.
 
+---
+
+## Day 28 — 2026-09-14 — the demo dashboard (offline)
+
+**What I set out to do**
+- `dashboard.py` (Streamlit), done when the full demo runs with wifi off.
+
+**Built**
+- A thin consumer (invariant 1) driven entirely by the SAVED artifacts — the committed `benchmark/results/*.json` and `ground_truth.yaml`. I deliberately did NOT back it with a live scan or even the cassette: a live scan needs VAmPI+Ollama, and Ollama traffic isn't cassettable, so a cassette replay couldn't show the BOLA/AI findings. Reading the saved JSONs is the robust offline path and is deterministic at demo time (no qwen3 cross-session drift). Offline-by-construction: no outbound calls, Streamlit serves local assets, telemetry disabled.
+- Five tabs: **Ablation** (the P/R/F1 table + a recall bar chart + headline metrics — Full 0.67 vs ZAP 0.17), **Findings** explorer (per-finding expanders with evidence, curl, and signal charts), **BOLA deep-dive** (the crown jewel — oracle verdict/reasoning, the 5 confidence signals as a chart, and the actual leak response), **Report** (the D27 HTML inline + a download button), **About** (the thesis + invariants).
+- Testability: pure helpers (`ablation_rows`, `load_result`, `bola_findings`, `parse_oracle`) at module top with no `st.`; all UI inside `main()` guarded by `if __name__ == "__main__"` (streamlit runs the file as `__main__`, so main() fires under `streamlit run` but not on import). `tests/test_dashboard.py` imports the module and tests the helpers without a Streamlit runtime.
+
+**Verified**
+- 5 dashboard tests. Launched `streamlit run dashboard.py` (headless, telemetry off) and viewed it in-browser: the header + metrics, the full ablation table (static/ai/ai+repair 0.42, Full 0.67, ZAP 0.17), and the BOLA deep-dive showing the LEAK verdict + signal bars all render — offline, no live target. `pytest -q` -> **136 passed** (+5).
+
+**Most likely to break next**
+- D29: a stranger cloning the repo needs the README to cover VAmPI+Ollama setup and the exact run commands. Confirm `pip install -e ".[dev]"` + `pytest` green from a clean checkout before tagging v1.0.
+
+**Next** — Day 29: README, docstrings, cleanup, tag v1.0.
+
 
 
 
