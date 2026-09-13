@@ -510,6 +510,33 @@ One short entry per working day: what was built, what broke, what was decided.
 
 **Next** — Day 24: run against crAPI + tune thresholds (or document crAPI unavailability).
 
+---
+
+## Day 24 — 2026-09-13 — crAPI: the engine finds a real BOLA on a second target
+
+**What I set out to do**
+- Done-when: >=1 true BOLA on crAPI with <=2 false positives. The plan flagged crAPI setup as a blocker risk (docker-compose, RAM). It did NOT materialise — 42GB free RAM, everything ran.
+
+**Bringing crAPI up (and the one gotcha)**
+- Started the core stack from the official compose (identity/community/workshop, postgres/mongo, mailhog, `crapi-web` gateway). `crapi-web` (nginx) crashed on boot: `[emerg] host not found in upstream "crapi-chatbot"` — nginx resolves every upstream at config-load, so even though we don't use the chatbot, its container must exist on the network. Started chromadb+chatbot too; gateway then came up on `127.0.0.1:8888`.
+
+**Getting two owner sessions honestly (no guessing, no DB writes)**
+- crAPI seeds demo users (adam007, pogba006, ...) with bcrypt passwords we don't know, and each owns exactly one vehicle. Rather than guess, I drove crAPI's own forgot-password -> OTP -> reset flow: crAPI mails all OTPs to MailHog, so `crapi_bola.py` reads the OTP from MailHog's API and resets two owners to a known password via `v3/check-otp`. (Reading the OTP directly from Postgres was correctly blocked by the auto-mode classifier — MailHog is the right channel anyway.)
+- This proved `AuthFlow` generalises to crAPI with **config only, zero engine code change** (email login, RS256 token, `token_json_key="token"` — VAmPI is HS256).
+
+**The BOLA and why it needed a driver, not `apiguard scan`**
+- `GET /identity/api/v2/vehicle/{vehicleId}/location` has no ownership check: any authenticated user reads any vehicle's GPS + owner name + email by uuid. The generic `ResourceDiscoverer` can't auto-seed a crAPI vehicle (they're pre-seeded and email-claim-gated), so `benchmark/crapi_bola.py` supplies the two owner->uuid bindings from crAPI's own `GET /vehicle/vehicles`, then runs the REAL `probe_cross_access` + `BolaOracle` + confidence + `bola_finding` UNMODIFIED. Extracted `runner.bola_finding()` so VAmPI and crAPI build findings through identical code. Honest split: discovery is target plumbing; the contribution (gate/oracle/confidence) generalises unchanged.
+
+**Result (real, reproducible)**
+- 1 true BOLA: HIGH, conf **0.8547**, signals `{id_echo:1, field_overlap:1, status_match:1, body_divergence:0.27, oracle_verdict:1}`, oracle `is_leak=True` leaked_fields `[fullName, email]`. Saved `benchmark/results/crapi.json` with full evidence + curl repro + AITrace (qwen3:8b, seed 42, temp 0.0).
+- 0 false positives: a legitimate self-access (B reads B's OWN vehicle) is cleared deterministically by `gate:identical-to-control` — no LLM call. Re-ran with fresh OTPs; identical finding and confidence.
+- `pytest -q` -> **113 passed** (added `test_opaque_id_bola_is_caught_by_fixed_gate`: crAPI-style id-in-URL-only case still reaches the oracle after the D22 gate fix; the vehicle-location body happens to echo `carId`, so this test covers the truly opaque case separately).
+
+**Most likely to break next**
+- D25/D26 numbers: the D17/D18 static & ai result JSONs are STALE (injection went GET-only at D22). Re-measure before filling the ablation table. crAPI is a genuine second data point for D26 now.
+
+**Next** — Day 25: `benchmark/ground_truth.yaml` + `run_eval.py` (precision/recall/F1 per arm).
+
 
 
 
