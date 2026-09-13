@@ -108,6 +108,9 @@ def scan(
     repair: bool = typer.Option(
         True, "--repair/--no-repair", help="Self-repair of validation-rejected payloads (ai/both)."
     ),
+    bola: bool = typer.Option(
+        False, "--bola/--no-bola", help="Run the BOLA engine (two-user object-authz testing; needs Ollama)."
+    ),
     record: str = typer.Option(
         None, "--record", help="Record all HTTP into this cassette directory."
     ),
@@ -145,7 +148,7 @@ def scan(
         if dry_run:
             result = _run_dry_run(spec, settings, confirm_authorized)
         else:
-            result = _run_scan(spec, settings, confirm_authorized, record, replay, payloads, repair)
+            result = _run_scan(spec, settings, confirm_authorized, record, replay, payloads, repair, bola)
     except ScopeError as exc:
         console.print(f"[bold red]Scope refused:[/bold red] {exc}")
         raise typer.Exit(code=2) from None
@@ -214,6 +217,7 @@ def _run_scan(
     replay_dir: str | None = None,
     payload_mode: str = "static",
     repair_enabled: bool = True,
+    bola_enabled: bool = False,
 ) -> ScanResult:
     with Progress(
         TextColumn("[progress.description]{task.description}"),
@@ -236,6 +240,7 @@ def _run_scan(
                 confirm_authorized=confirm_authorized,
                 payload_mode=payload_mode,
                 repair_enabled=repair_enabled,
+                bola_enabled=bola_enabled,
                 record_dir=record_dir,
                 replay_dir=replay_dir,
                 on_progress=on_progress,

@@ -15,17 +15,84 @@ from __future__ import annotations
 from collections.abc import Callable
 from urllib.parse import urlparse
 
+import re
+
 from apiguard.ai.client import OllamaClient
+from apiguard.ai.oracle import BolaOracle
 from apiguard.ai.payload_gen import PayloadGenerator
 from apiguard.ai.repair import RepairLoop
 from apiguard.core.findings import finalize
 from apiguard.core.http_engine import Cassette, HttpEngine
 from apiguard.core.identity import IdentityManager, UserCredentials
-from apiguard.core.models import ScanResult
+from apiguard.core.models import AITrace, Endpoint, Finding, ScanResult, Severity
 from apiguard.core.scope import ScopeGuard
 from apiguard.core.spec_parser import load_spec, parse_spec
+from apiguard.engines.bola import collect_triples
 from apiguard.scanners.base import ScanContext, build_scanners
+from apiguard.scoring.confidence import compute_signals, confidence
 from apiguard.settings import Settings
+
+
+def _bola_finding_id(endpoint: Endpoint, object_id: str) -> str:
+    raw = f"bola-{endpoint.method}-{endpoint.path}-{object_id}".lower()
+    return re.sub(r"[^a-z0-9]+", "-", raw).strip("-")
+
+
+async def find_bola_findings(
+    engine: HttpEngine,
+    base_url: str,
+    sessions,
+    endpoints: list[Endpoint],
+    oracle: BolaOracle,
+    weights: dict[str, float],
+    *,
+    attacker: str = "userB",
+) -> list[Finding]:
+    """Full BOLA engine: triples -> gate/oracle -> 5 signals -> confidence -> Finding."""
+    triples = await collect_triples(engine, base_url, sessions, endpoints, attacker=attacker)
+    findings: list[Finding] = []
+    for triple in triples:
+        decision = await oracle.adjudicate(triple)
+        if not decision.is_leak:
+            continue
+        signals = compute_signals(triple, decision.oracle_verdict)
+        endpoint = triple.object_endpoint
+        # Public endpoints (no security) leak by design -> lower severity, not suppressed.
+        severity = Severity.HIGH if endpoint.security else Severity.MEDIUM
+        ai_trace = None
+        if decision.trace is not None:
+            ai_trace = AITrace(
+                model=decision.trace["model"],
+                seed=decision.trace["seed"],
+                temperature=decision.trace["temperature"],
+                prompt=decision.trace["prompt"],
+                raw_response=decision.trace["raw_response"],
+                signals=signals,
+            )
+        public = " (public endpoint)" if not endpoint.security else ""
+        findings.append(
+            Finding(
+                id=_bola_finding_id(endpoint, triple.a_object_id),
+                title=f"BOLA: User B can read User A's object via {endpoint.method} {endpoint.path}{public}",
+                scanner="bola",
+                endpoint=endpoint,
+                severity=severity,
+                owasp_id="API1:2023",
+                confidence=confidence(signals, weights),
+                description=(
+                    f"User B accessed User A's object (id={triple.a_object_id!r}) and received A's "
+                    f"data. Leaked fields: {decision.leaked_fields or 'see response body'}. "
+                    f"Oracle: {decision.reasoning}"
+                ),
+                remediation=(
+                    "Enforce object-level authorization: verify the authenticated caller owns or "
+                    "is permitted to access the requested object."
+                ),
+                evidence=triple.b_cross_access,
+                ai_trace=ai_trace,
+            )
+        )
+    return findings
 
 # on_progress(current_index, total, description)
 ProgressCb = Callable[[int, int, str], None]
@@ -98,6 +165,7 @@ async def scan(
     confirm_authorized: bool = False,
     payload_mode: str = "static",
     repair_enabled: bool = True,
+    bola_enabled: bool = False,
     record_dir: str | None = None,
     replay_dir: str | None = None,
     on_progress: ProgressCb | None = None,
@@ -171,6 +239,27 @@ async def scan(
                 on_progress(index, total, f"{endpoint.method} {endpoint.path}")
             for scanner in scanners:
                 findings.extend(await scanner.run(endpoint))
+
+        # BOLA engine (the "Full" arm): needs two users + the oracle. Degrades
+        # silently if Ollama is unavailable (invariant 4).
+        if bola_enabled and len(sessions) >= 2:
+            bola_client = OllamaClient.from_settings(settings)
+            if await bola_client.available():
+                # Re-authenticate: earlier scanners may have disturbed target state
+                # (e.g. VAmPI's GET /createdb reset endpoint wipes registered users),
+                # invalidating the sessions from the start of the scan.
+                bola_sessions = await identity.setup(users)
+                oracle = BolaOracle(bola_client, temperature=settings.temperature_oracle)
+                findings.extend(
+                    await find_bola_findings(
+                        engine,
+                        base_url,
+                        bola_sessions,
+                        endpoints,
+                        oracle,
+                        settings.confidence_weights.model_dump(),
+                    )
+                )
 
         result = ScanResult(
             target=base_url,

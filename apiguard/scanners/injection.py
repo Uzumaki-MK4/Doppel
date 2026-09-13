@@ -126,6 +126,12 @@ class InjectionScanner(Scanner):
         return exchange, time.monotonic() - start
 
     async def run(self, endpoint: Endpoint) -> list[Finding]:
+        # SAFETY: only probe GET. A tautology/boolean payload on a state-changing
+        # method is destructive -- e.g. `' OR 1=1--` in a DELETE path param becomes
+        # `DELETE FROM users WHERE username='' OR 1=1--'` and wipes every row. Testing
+        # SQLi on write endpoints safely needs error-only/OAST probes (out of scope).
+        if endpoint.method.upper() != "GET":
+            return []
         targets = [p for p in endpoint.parameters if p.location in ("path", "query")]
         if not targets:
             return []
