@@ -27,6 +27,7 @@ from apiguard.core.identity import IdentityManager, UserCredentials
 from apiguard.core.models import AITrace, Endpoint, Finding, ScanResult, Severity
 from apiguard.core.scope import ScopeGuard
 from apiguard.core.spec_parser import load_spec, parse_spec
+from apiguard.engines.bfla import find_bfla_findings
 from apiguard.engines.bola import collect_triples
 from apiguard.scanners.base import ScanContext, build_scanners
 from apiguard.scoring.confidence import compute_signals, confidence
@@ -243,12 +244,19 @@ async def scan(
         # BOLA engine (the "Full" arm): needs two users + the oracle. Degrades
         # silently if Ollama is unavailable (invariant 4).
         if bola_enabled and len(sessions) >= 2:
+            # Re-authenticate: earlier scanners may have disturbed target state
+            # (e.g. VAmPI's GET /createdb reset endpoint wipes registered users),
+            # invalidating the sessions from the start of the scan.
+            bola_sessions = await identity.setup(users)
+
+            # BFLA engine: deterministic, runs even without Ollama.
+            findings.extend(
+                await find_bfla_findings(engine, base_url, bola_sessions, endpoints)
+            )
+
+            # BOLA engine: needs the oracle.
             bola_client = OllamaClient.from_settings(settings)
             if await bola_client.available():
-                # Re-authenticate: earlier scanners may have disturbed target state
-                # (e.g. VAmPI's GET /createdb reset endpoint wipes registered users),
-                # invalidating the sessions from the start of the scan.
-                bola_sessions = await identity.setup(users)
                 oracle = BolaOracle(bola_client, temperature=settings.temperature_oracle)
                 findings.extend(
                     await find_bola_findings(
