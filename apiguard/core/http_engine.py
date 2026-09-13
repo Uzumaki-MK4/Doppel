@@ -7,8 +7,9 @@ retryable failure) and returns an `HttpExchange` that bundles the raw response
 with a fully-built `Evidence` record, including a copy-pasteable curl string
 (invariant 6).
 
-Cassette record/replay is added on D12; auth/session management is D5. Until
-then, authenticated endpoints simply return 401 — still a status.
+Cassette record/replay (`Cassette`) lets `--record` capture a whole scan and
+`--replay` re-run it offline with the target stopped. Redirects are not followed —
+a security tool must see the raw 3xx, not the followed destination.
 """
 
 from __future__ import annotations

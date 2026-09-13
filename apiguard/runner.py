@@ -1,13 +1,14 @@
-"""Scan orchestration (BRAIN.md D6).
+"""Scan orchestration (BRAIN.md invariant 1 — keeps the CLI logic-free).
 
-The runner is where the pipeline is wired together, keeping the CLI logic-free
-(invariant 1). `dry_run()` parses the spec, logs in both users, and touches every
-endpoint with a baseline probe (as User A) — the Week-1 end-to-end plumbing check,
-with no vulnerability scanners yet. Progress is reported through an optional
-callback so `rich` stays in the CLI.
+`scan()` is the full pipeline: parse the spec, log in two users, run every
+registered scanner over every endpoint, then the BOLA/BFLA engine (the crown
+jewel), and finalize + dedupe the findings. `dry_run()` is the Week-1 plumbing
+check (parse + login + touch every endpoint, no scanners). `find_bola_findings`
+and `bola_finding` build scored BOLA findings from access triples. Progress is
+reported through an optional callback so `rich` stays in the CLI.
 
-Note: a dry-run still sends baseline requests (it is not a no-network mode), so
-run it only against a disposable target such as VAmPI.
+Note: both send real requests (not a no-network mode), so run them only against a
+disposable target such as VAmPI — except `scan --replay`, which is fully offline.
 """
 
 from __future__ import annotations

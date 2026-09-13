@@ -16,6 +16,8 @@ from apiguard.ai.prompts import PAYLOAD_SYSTEM, PayloadSet, payload_user_prompt
 
 
 class PayloadGenerator:
+    """Generates context-tailored attack payloads for a parameter via the LLM."""
+
     def __init__(self, client: OllamaClient, *, temperature: float = 0.8, count: int = 8) -> None:
         self._client = client
         self._temperature = temperature

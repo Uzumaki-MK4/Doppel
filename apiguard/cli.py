@@ -1,8 +1,9 @@
 """APIGuard command-line interface (Typer).
 
 Thin consumer of the engine — no business logic here (BRAIN.md invariant 1).
-It fetches the spec through the core parser and renders it with `rich`.
-Currently exposes `parse`; the `scan` command arrives on Day 6.
+Exposes `parse` (table an OpenAPI spec) and `scan` (run the scanners + the
+BOLA/BFLA engine, optionally writing a JSON result and/or an HTML report). All
+output goes through `rich`.
 """
 
 from __future__ import annotations
@@ -33,8 +34,8 @@ console = Console()
 def _root() -> None:
     """APIGuard — AI-powered API vulnerability scanner.
 
-    A root callback keeps subcommand style (`apiguard parse ...`) even while
-    `parse` is the only command; `scan` joins on Day 6.
+    A root callback keeps the subcommand style (`apiguard parse ...`,
+    `apiguard scan ...`).
     """
 
 

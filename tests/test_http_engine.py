@@ -4,7 +4,6 @@ import asyncio
 import time
 
 import httpx
-import pytest
 import respx
 from httpx import Response
 

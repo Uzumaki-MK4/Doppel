@@ -39,6 +39,8 @@ def gate(triple: AccessTriple) -> tuple[str, str]:
 
 @dataclass
 class BolaDecision:
+    """The oracle/gate's verdict on one access triple, plus the trace for the AITrace."""
+
     triple: AccessTriple
     is_leak: bool
     leaked_fields: list[str]
@@ -50,6 +52,8 @@ class BolaDecision:
 
 
 class BolaOracle:
+    """Runs the deterministic gate first and the LLM oracle only on ambiguous triples."""
+
     def __init__(self, client: OllamaClient, *, temperature: float = 0.0) -> None:
         self._client = client
         self._temperature = temperature

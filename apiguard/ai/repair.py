@@ -25,6 +25,8 @@ _REJECTED = (400, 422)
 
 @dataclass
 class RepairResult:
+    """Outcome of a self-repair loop: whether a rejected value was fixed, and how."""
+
     repaired: bool
     attempts: int
     final_value: str | None
@@ -34,6 +36,8 @@ class RepairResult:
 
 
 class RepairLoop:
+    """Feeds a server's 4xx rejection back to the LLM to fix a payload, capped at max_retries."""
+
     def __init__(self, client: OllamaClient, *, max_retries: int = 2, temperature: float = 0.8) -> None:
         self._client = client
         self._max_retries = max_retries

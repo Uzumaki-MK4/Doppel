@@ -24,6 +24,8 @@ class IdentityError(RuntimeError):
 
 
 class UserCredentials(BaseModel):
+    """One principal's login credentials (username/password, optional email)."""
+
     username: str
     password: str
     email: str | None = None

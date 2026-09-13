@@ -97,7 +97,6 @@ def parse_oracle(raw_response: str) -> dict:
 # Streamlit UI (everything below touches st.*; kept out of the pure helpers)
 # --------------------------------------------------------------------------- #
 def main() -> None:  # pragma: no cover - exercised by `streamlit run`, not pytest
-    import pandas as pd
     import streamlit as st
 
     from apiguard.report.generator import render_report
@@ -134,15 +133,15 @@ def main() -> None:  # pragma: no cover - exercised by `streamlit run`, not pyte
     # ---- Ablation ----
     with tab_abl:
         st.subheader("Ablation — precision / recall / F1 vs ground truth")
-        df = pd.DataFrame([{k: v for k, v in r.items() if not k.startswith("_")} for r in rows])
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        table = [{k: ("n/a" if k == "Requests" and v is None else v)
+                  for k, v in r.items() if not k.startswith("_")} for r in rows]
+        st.dataframe(table, use_container_width=True, hide_index=True)
         st.caption("Recall = TP / known vulns for that target. Precision = TP / (TP+FP). "
                    "ZAP's request count is not in its report (n/a).")
-        vrows = [r for r in rows if r["Target"] == "vampi"]
-        if vrows:
-            chart = pd.DataFrame({r["Arm"]: [r["Recall"]] for r in vrows}).T
-            chart.columns = ["Recall"]
-            st.bar_chart(chart, use_container_width=True)
+        st.markdown("**Recall by arm** — VAmPI, of 12 known vulns")
+        for r in rows:
+            if r["Target"] == "vampi":
+                st.progress(r["Recall"], text=f"{r['Arm']} — {r['Recall']:.2f}")
         st.markdown(
             "**The result:** the BOLA/BFLA engine lifts recall from **0.42** (baseline scanners) "
             "to **0.67** at perfect precision — nearly **4×** OWASP ZAP's 0.17. ZAP retrieved the "
@@ -167,9 +166,9 @@ def main() -> None:  # pragma: no cover - exercised by `streamlit run`, not pyte
                 st.markdown(f"**What:** {f.description}")
                 st.markdown(f"**Fix:** {f.remediation}")
                 if f.ai_trace and f.ai_trace.signals:
-                    st.bar_chart(pd.DataFrame({"signal": list(f.ai_trace.signals),
-                                               "value": list(f.ai_trace.signals.values())})
-                                 .set_index("signal"), use_container_width=True)
+                    st.caption("Confidence signals")
+                    for name, value in f.ai_trace.signals.items():
+                        st.progress(value, text=f"{name.replace('_', ' ')} — {value:.2f}")
                 st.code(f.evidence.curl_repro, language="bash")
                 st.text(f"HTTP {f.evidence.response_status}")
                 st.code((f.evidence.response_body or "")[:2000], language="json")
@@ -194,9 +193,8 @@ def main() -> None:  # pragma: no cover - exercised by `streamlit run`, not pyte
             m2.metric("Oracle verdict", "LEAK" if oracle.get("is_leak") else "—")
             m3.metric("Model / seed", f"{f.ai_trace.model} · {f.ai_trace.seed}")
             st.markdown("**Confidence signals** (weighted mean → confidence):")
-            st.bar_chart(pd.DataFrame({"signal": list(f.ai_trace.signals),
-                                       "value": list(f.ai_trace.signals.values())}).set_index("signal"),
-                         use_container_width=True)
+            for name, value in f.ai_trace.signals.items():
+                st.progress(value, text=f"{name.replace('_', ' ')} — {value:.2f}")
             if oracle.get("leaked_fields"):
                 st.markdown(f"**Leaked fields:** `{', '.join(oracle['leaked_fields'])}`")
             if oracle.get("reasoning"):

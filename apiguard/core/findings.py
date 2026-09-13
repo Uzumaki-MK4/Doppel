@@ -53,10 +53,12 @@ _SEVERITY_RANK: dict[Severity, int] = {
 
 
 def owasp_name(owasp_id: str) -> str:
+    """Human-readable name for an OWASP API Top 10 (2023) id, or 'Unmapped'."""
     return OWASP_API_2023.get(owasp_id, "Unmapped")
 
 
 def is_valid_owasp_id(owasp_id: str) -> bool:
+    """True if the id is a known OWASP API Top 10 (2023) category."""
     return owasp_id in OWASP_API_2023
 
 

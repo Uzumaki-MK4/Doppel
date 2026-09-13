@@ -70,6 +70,8 @@ async def _object_access(
 
 
 class ResourceDiscoverer:
+    """Finds objects provably owned by a user, by seeding (POST) and harvesting (owner-field match)."""
+
     def __init__(
         self, engine: HttpEngine, base_url: str, sessions: dict[str, Session], *, owner: str = "userA"
     ) -> None:

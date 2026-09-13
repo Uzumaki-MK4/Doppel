@@ -1,12 +1,15 @@
-"""Injection scanner: SQLi + reflected XSS in one loop (BRAIN.md D8).
+"""Injection scanner: SQLi + reflected XSS in one loop (BRAIN.md D8, D18).
 
-SQLi is detected two ways: error-signature matching (a SQL error appears with the
-payload but not in the benign baseline) and time-delay (a sleep payload makes the
-response markedly slower than baseline). Reflected XSS is detected by injecting a
-marker and checking it reflects unescaped in an HTML response.
+SQLi is detected three ways: error-signature matching (a SQL error appears with the
+payload but not in the benign baseline), time-delay (a sleep payload makes the
+response markedly slower), and boolean-differential (a TRUE tautology returns richer
+data than a FALSE one at the same status) — the last catches 200-OK injection that
+leaks no error. Reflected XSS injects a marker and checks it reflects unescaped in an
+HTML response (5xx debug pages are skipped so verbose errors aren't mis-flagged).
 
-Payloads are static wordlists under `wordlists/` (AI-generated payloads arrive in
-Week 3); a built-in default list is used if the files are absent.
+Payloads are static by default; with `--payloads ai|both` the AI payload generator
+supplies context-tailored candidates and the self-repair loop retries rejected ones.
+Only GET endpoints are probed — a tautology on a state-changing path param is destructive.
 """
 
 from __future__ import annotations

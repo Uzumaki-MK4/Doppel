@@ -20,6 +20,8 @@ _STRICT = ConfigDict(extra="forbid")
 
 
 class Severity(StrEnum):
+    """Finding severity, ordered INFO < LOW < MEDIUM < HIGH < CRITICAL."""
+
     INFO = "info"
     LOW = "low"
     MEDIUM = "medium"

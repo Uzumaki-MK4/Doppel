@@ -79,6 +79,7 @@ class OllamaClient:
 
     @classmethod
     def from_settings(cls, settings, **overrides) -> OllamaClient:
+        """Build a client from Settings (model/host/seed), with optional overrides."""
         return cls(
             model=settings.model,
             host=settings.ollama_host,
