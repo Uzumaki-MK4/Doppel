@@ -588,6 +588,26 @@ One short entry per working day: what was built, what broke, what was decided.
 
 **Next** — Day 27: HTML report generator incl. the AI trace; `scan --report out.html`.
 
+---
+
+## Day 27 — 2026-09-14 — the HTML report (with the AI trace front and centre)
+
+**What I set out to do**
+- `scan --report out.html` produces something presentable, and it must surface the AI oracle trace for the BOLA findings — that explainability is the selling point.
+
+**Built**
+- `apiguard/report/generator.py` (`render_report` / `write_report`) + `apiguard/report/template.html` (jinja2). Wired `--report` into the CLI `scan` command (stamps the generation time). The report is a thin library consumer (invariant 1) — it takes a `ScanResult` and renders it; no logic in the CLI.
+- Design constraints that drove the choices: (1) **self-contained** — inline CSS only, no external fonts/scripts, so it opens offline for the wifi-off demo and is emailable as one file. (2) **autoescaping ON** — findings embed real response bodies that can contain attacker markup, so the report must render them inert or it is itself an XSS vector. A test asserts a `<script>` body escapes to `&lt;script&gt;`. (3) **the AI trace is the centrepiece** — for every AI-adjudicated finding it shows model/seed/temp, the 5 confidence signals as bars, and the oracle's prompt + raw schema-validated response in a collapsible. Confidence renders as a bar labelled "computed from signals" (invariant 5 messaging).
+
+**Verified**
+- 5 report tests (structure, AI-trace surfaced, autoescape, no-findings, file write). Generated a real report from the 8-finding Full scan and viewed it in-browser: dark header + meta grid, severity pills (Critical 2 / High 2 / Medium 1 / Low 3), per-finding cards with confidence bars, and the BOLA cards showing the "AI oracle trace" block with signal bars — exactly the explainability I wanted. CLI end-to-end: `scan --payloads static --report out.html` wrote the file.
+- `pytest -q` -> **131 passed** (+5).
+
+**Most likely to break next**
+- D28 Streamlit dashboard must run offline (wifi off) — back it with the `cassettes/vampi/` replay + the saved arm JSONs + this HTML report, and keep it a thin consumer.
+
+**Next** — Day 28: Streamlit dashboard, cassette-backed, full demo runs with wifi off.
+
 
 
 
