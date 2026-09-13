@@ -1,0 +1,228 @@
+# benchmark/ground_truth.yaml — known vulnerabilities in VAmPI and crAPI (BRAIN.md D25)
+#
+# This is the YARDSTICK for the ablation (Section 1 table). Each entry is a REAL,
+# verified vulnerability of the target. `run_eval.py` joins every scan finding to
+# an entry to compute precision / recall / F1 per arm.
+#
+# Semantics of `detectable` / `match`:
+#   detectable: true  -> APIGuard HAS a detector that emits this, demonstrated in
+#                        at least one committed result file. Carries a `match`
+#                        block (predicates that ALL must hold to join a finding).
+#                        A weaker arm that misses it (e.g. a baseline arm with no
+#                        BOLA engine) scores it as a real false negative — that gap
+#                        IS the ablation.
+#   detectable: false -> a genuine known vuln APIGuard cannot (yet) detect. No
+#                        `match` block; it is always a false negative. Listing it
+#                        keeps the recall denominator honest (never inflate recall
+#                        by pretending the tool's blind spots do not exist).
+#
+# Matcher rules (learned from the real Finding fields; see run_eval.Match):
+#   * Global findings (jwt, rate_limit) are reported on an INCIDENTAL endpoint, so
+#     match on `scanner` ALONE — never on path/method.
+#   * The scanner string is the bare literal: injection / jwt / ssrf / misconfig /
+#     rate_limit / bola / bfla  (NOT the module filename "jwt_attacks").
+#   * The two misconfig globals share path "/", so separate them by `id_contains`.
+#   * owasp_id is descriptive only and is NOT a match predicate (the tool maps SQLi
+#     to API8 while a purist calls it injection — keying on owasp would un-match).
+#
+# Every entry below was verified against the live target (VAmPI container `vampi`,
+# crAPI gateway :8888) — see docs/journal.md, Day 25.
+
+targets:
+  vampi:
+    base_url_contains: ":5000"
+  crapi:
+    base_url_contains: ":8888"
+
+vulns:
+  # ─────────────────────────── VAmPI — detectable ───────────────────────────
+  - id: vampi-sqli-username
+    target: vampi
+    title: "SQL injection in the username path param of GET /users/v1/{username}"
+    owasp_id: API8:2023          # 2023 folds Injection into API8 (matches APIGuard's mapping)
+    vuln_class: injection
+    detectable: true
+    match: { scanner: injection, path: "/users/v1/{username}", id_contains: sqli }
+    note: >-
+      Raw f-string query in models/user_model.py. Verified: GET /users/v1/name1'
+      -> 500 sqlite3.OperationalError; boolean OR '1'='1 -> 200; UNION SELECT dumps
+      admin's password into the email field.
+
+  - id: vampi-bola-book-secret
+    target: vampi
+    title: "BOLA: any authenticated user reads any book's owner-only secret via GET /books/v1/{book_title}"
+    owasp_id: API1:2023
+    vuln_class: bola
+    detectable: true
+    match: { scanner: bola, path: "/books/v1/{book_title}" }
+    note: >-
+      get_by_title() looks up by title only, no owner filter. Verified: userB reads
+      userA's private book secret (200). The crown-jewel 200-OK cross-user read the
+      LLM oracle adjudicates.
+
+  - id: vampi-bola-user-record
+    target: vampi
+    title: "BOLA / excessive exposure: GET /users/v1/{username} returns any user's record with no auth"
+    owasp_id: API1:2023
+    vuln_class: bola
+    detectable: true
+    match: { scanner: bola, path: "/users/v1/{username}" }
+    note: >-
+      Public object read (spec security=[]); APIGuard emits it as a MEDIUM bola
+      (down-weighted, not suppressed). Must be listed, else the Full arm's real
+      finding would score as a false positive.
+
+  - id: vampi-bfla-debug-dump
+    target: vampi
+    title: "BFLA / excessive exposure: GET /users/v1/_debug dumps every user's password, unauthenticated"
+    owasp_id: API5:2023          # VAmPI docs call it API3 excessive-data; APIGuard emits it as BFLA/API5
+    vuln_class: bfla
+    detectable: true
+    match: { scanner: bfla, path: "/users/v1/_debug" }
+    note: >-
+      Privileged debug function reachable by anyone; body leaks cleartext passwords
+      -> APIGuard flags CRITICAL. Verified: GET /users/v1/_debug (no auth) -> 200
+      full user+password dump.
+
+  - id: vampi-jwt-weak-secret
+    target: vampi
+    title: "Weak JWT signing secret ('random', HS256) enables token forgery / account takeover"
+    owasp_id: API2:2023
+    vuln_class: broken_auth
+    detectable: true
+    match: { scanner: jwt }       # GLOBAL finding — match on scanner alone
+    note: >-
+      SECRET_KEY='random' in config.py. Verified: token forged with key 'random'
+      -> GET /me returns admin; identical token with a wrong key -> 401 (signature
+      IS checked). alg:none and signature-strip are correctly rejected, so the flaw
+      is the weak secret. APIGuard reports it on the first authed GET (incidental).
+
+  - id: vampi-misconfig-missing-headers
+    target: vampi
+    title: "Missing security headers (no X-Content-Type-Options / X-Frame-Options / CSP / HSTS)"
+    owasp_id: API8:2023
+    vuln_class: misconfig
+    detectable: true
+    match: { scanner: misconfig, id_contains: missing-security-headers }   # fixed id, shares path "/"
+    note: "Global misconfig finding with a constant id."
+
+  - id: vampi-misconfig-version-disclosure
+    target: vampi
+    title: "Server version disclosure (Server: Werkzeug/2.2.3 Python/3.11.15)"
+    owasp_id: API8:2023
+    vuln_class: misconfig
+    detectable: true
+    match: { scanner: misconfig, id_contains: version-disclosure }
+    note: "Global misconfig finding with a constant id; separated from missing-headers by id_contains."
+
+  - id: vampi-no-rate-limiting
+    target: vampi
+    title: "No rate limiting / anti-automation (enables brute force)"
+    owasp_id: API4:2023
+    vuln_class: rate_limit
+    detectable: true
+    match: { scanner: rate_limit }   # GLOBAL finding (one per scan, on GET "/") — match on scanner alone
+    note: >-
+      No limiting middleware anywhere in VAmPI. Verified: 25 rapid logins, zero 429.
+      APIGuard bursts a no-param GET and flags the absence.
+
+  # ─────────────────────── VAmPI — false negatives (no detector) ───────────────────────
+  - id: vampi-mass-assignment-admin
+    target: vampi
+    title: "Mass assignment: client sets admin=true at POST /users/v1/register -> privilege escalation"
+    owasp_id: API3:2023
+    vuln_class: mass_assignment
+    detectable: false
+    note: >-
+      register_user() binds a client-supplied admin flag not in the schema. Verified:
+      registered {admin:true} -> /me shows admin:true. APIGuard has no mass-assignment
+      detector (recall denominator).
+
+  - id: vampi-unauth-password-change
+    target: vampi
+    title: "Any user can change ANY user's password: PUT /users/v1/{username}/password keys on the PATH, not the token"
+    owasp_id: API1:2023
+    vuln_class: unauthorized_update
+    detectable: false
+    note: >-
+      update_password() uses the path username, not the token subject. Verified:
+      name1 set name2's password (204), name2's old password then failed and the new
+      one logged in. This is broken object-authz on a WRITE; APIGuard's BOLA engine
+      adjudicates cross-user READS only (recall denominator).
+
+  - id: vampi-user-password-enumeration
+    target: vampi
+    title: "Username & password enumeration via distinct login responses (POST /users/v1/login)"
+    owasp_id: API2:2023
+    vuln_class: broken_auth
+    detectable: false
+    note: >-
+      Verified: existing-user wrong-password -> 'Password is not correct...' vs
+      unknown user -> 'Username does not exist'. APIGuard has no auth-response
+      differential detector (recall denominator).
+
+  - id: vampi-regexdos-email
+    target: vampi
+    title: "RegexDOS: catastrophic-backtracking email-validation regex on PUT /users/v1/{username}/email"
+    owasp_id: API4:2023
+    vuln_class: dos
+    detectable: false
+    note: >-
+      Documented VAmPI vuln; endpoint surface verified reachable (PUT ... /email ->
+      204). Timing not asserted here. APIGuard has no algorithmic-complexity detector
+      (recall denominator).
+
+  # ─────────────────────────── crAPI ───────────────────────────
+  # crapi.json is a TARGETED BOLA validation (one endpoint, via benchmark/crapi_bola.py),
+  # NOT a full `apiguard scan`. So only the vehicle-location BOLA is demonstrated; crAPI's
+  # other known vulns are honest false negatives until D26 wires a full crAPI scan.
+  - id: crapi-bola-vehicle-location
+    target: crapi
+    title: "BOLA: any user reads any vehicle's GPS + owner name/email via GET /identity/api/v2/vehicle/{vehicleId}/location"
+    owasp_id: API1:2023
+    vuln_class: bola
+    detectable: true
+    match: { scanner: bola, path: "/identity/api/v2/vehicle/{vehicleId}/location" }
+    note: >-
+      No ownership check on the uuid. Verified D24: userB read userA's vehicle
+      location; oracle is_leak=True, confidence 0.8547, 0 false positives.
+
+  - id: crapi-bola-shop-order
+    target: crapi
+    title: "BOLA: read another user's order via GET /workshop/api/shop/orders/{order_id}"
+    owasp_id: API1:2023
+    vuln_class: bola
+    detectable: false
+    note: >-
+      Documented crAPI BOLA (bola engine CLASS covers it) but orders come from a
+      purchase flow the generic ResourceDiscoverer cannot auto-seed and no driver
+      covers it yet -> not demonstrated (D26).
+
+  - id: crapi-bola-mechanic-report
+    target: crapi
+    title: "BOLA: read another user's mechanic report via GET /workshop/api/mechanic/mechanic_report (report_id)"
+    owasp_id: API1:2023
+    vuln_class: bola
+    detectable: false
+    note: >-
+      report_id is a QUERY parameter; the discoverer only selects object endpoints
+      whose path ends in a '{id}' segment, so it can never auto-probe this (inherent
+      gap of the current discovery step).
+
+  - id: crapi-jwt-weakness
+    target: crapi
+    title: "JWT weaknesses on crAPI (forgeable / alg handling) enabling impersonation"
+    owasp_id: API2:2023
+    vuln_class: broken_auth
+    detectable: false
+    note: >-
+      APIGuard has a jwt detector, but no full crAPI scan has been run (crapi.json is
+      a single-endpoint BOLA driver), so it is not demonstrated on crAPI (D26).
+
+  - id: crapi-mass-assignment-video
+    target: crapi
+    title: "Mass assignment on video/profile update (PUT /identity/api/v2/user/videos/{video_id})"
+    owasp_id: API3:2023
+    vuln_class: mass_assignment
+    detectable: false
+    note: "Documented crAPI challenge; APIGuard has no mass-assignment detector (recall denominator)."
