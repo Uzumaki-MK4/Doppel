@@ -118,6 +118,7 @@ def scan(
         None, "--replay", help="Replay all HTTP from this cassette directory (offline)."
     ),
     out: str = typer.Option(None, "--out", help="Write the ScanResult JSON to this path."),
+    report: str = typer.Option(None, "--report", help="Write a self-contained HTML report to this path."),
 ) -> None:
     """Scan an API for vulnerabilities. Use --dry-run for a plumbing-only pass."""
     settings = load_settings(config)
@@ -162,6 +163,19 @@ def scan(
         _render_findings(result)
         if out:
             _write_result(out, result)
+        if report:
+            _write_report(report, result)
+
+
+def _write_report(out: str, result: ScanResult) -> None:
+    from datetime import datetime
+
+    from apiguard.report.generator import write_report
+
+    path = write_report(
+        result, out, generated_at=datetime.now().isoformat(timespec="seconds")
+    )
+    console.print(f"[green]Wrote HTML report to {path}[/green]")
 
 
 def _run_dry_run(spec: str, settings, confirm_authorized: bool) -> ScanResult:
