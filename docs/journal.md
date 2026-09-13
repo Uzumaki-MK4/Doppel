@@ -442,6 +442,27 @@ One short entry per working day: what was built, what broke, what was decided.
 
 **Next** — Day 21: `ai/oracle.py` (BOLA ambiguity gate + response oracle).
 
+## Day 21 — 2026-09-13 — BOLA response oracle + ambiguity gate (semantic heart)
+
+**Built**
+- `apiguard/ai/oracle.py`: `gate(triple)` (Section-5 cheap checks) and `BolaOracle.adjudicate` (LLM only on 'ambiguous'; schema-constrained `OracleVerdict` at temp 0.0; 'inconclusive' and 'unavailable' both degrade to not-a-leak, never crash). `BolaDecision` carries is_leak/leaked_fields/reasoning/decided_by/oracle_verdict/trace for D22.
+- `apiguard/ai/prompts.py`: `OracleVerdict`, `ORACLE_SYSTEM`, `oracle_user_prompt` (RESPONSE_A vs RESPONSE_B, noise-truncated). PROMPTS_VERSION += oracle-v1.
+- `tests/test_oracle.py`: 8 (each gate path; oracle flag/clear; gate-decision-skips-LLM; inconclusive = not a leak).
+
+**Verified — Day 21 done-condition met**
+- Live (VAmPI): book cross-access -> gate 'ambiguous' -> oracle is_leak=True, leaked_fields=[book_title,owner,secret] ("User B has accessed User A's private data"). B-reads-own-book -> oracle is_leak=False ("data specific to User B... no fields belong to User A"). Both routed gate -> oracle (deterministic-first honored).
+- `pytest -q` -> 102 passed.
+- Also: Ollama server had died over the 41h gap; restarted it, and hardened the oracle to degrade (not crash) if Ollama is down mid-scan.
+
+**Decided** — see BRAIN.md Section 9 (deterministic-first gate; inconclusive/unavailable -> not-a-leak; oracle verdict is one signal, not the confidence).
+
+**Ultracode** — launched an adversarial review workflow over the oracle/gate/prompt; running in the background, confirmed findings to be folded in a follow-up (likely: prompt-injection via untrusted response bodies is a documented limitation; the schema `format` bounds the shape but not the verdict value).
+
+**Most likely to break next**
+- D22 `scoring/confidence.py`: computing the 5 signals from the triple + oracle verdict and a defensible weighted sum (weights in config). The public users endpoint will score as a leak (data-correct) but must be severity-down-weighted via `endpoint.security == []`, not suppressed. Building the `Finding` (+AITrace from the oracle trace) and wiring the whole BOLA engine into a scan.
+
+**Next** — Day 22: `scoring/confidence.py` (5 signals + weighted confidence + Finding).
+
 
 
 

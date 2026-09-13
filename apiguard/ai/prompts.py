@@ -17,7 +17,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-PROMPTS_VERSION = "2026-09-12.payload-v2+repair-v1"
+PROMPTS_VERSION = "2026-09-13.payload-v2+repair-v1+oracle-v1"
 
 
 class PayloadCandidate(BaseModel):
@@ -33,6 +33,39 @@ class PayloadSet(BaseModel):
 class RepairedPayload(BaseModel):
     value: str
     rationale: str
+
+
+class OracleVerdict(BaseModel):
+    is_leak: bool
+    leaked_fields: list[str]
+    reasoning: str
+
+
+ORACLE_SYSTEM = (
+    "You are a strict API authorization oracle for an AUTHORIZED security test. You are given two "
+    "API responses for the SAME object id: RESPONSE_A is User A accessing their OWN object; "
+    "RESPONSE_B is User B — a DIFFERENT user — accessing the same object id. Decide whether "
+    "RESPONSE_B leaks data that belongs to User A (i.e. B can read A's private data). Judge ONLY "
+    "from the data shown; set is_leak=true ONLY if RESPONSE_B actually contains A's data (an error, "
+    "an empty result, or B's own data is NOT a leak). Return ONLY the requested structured JSON."
+)
+
+
+def oracle_user_prompt(a_body: str, b_cross_body: str, *, max_chars: int = 1200) -> str:
+    """Build the oracle prompt from A's own response and B's cross-access response."""
+    return "\n".join(
+        [
+            "RESPONSE_A (User A's access to their own object):",
+            a_body[:max_chars],
+            "",
+            "RESPONSE_B (User B accessing the SAME object id):",
+            b_cross_body[:max_chars],
+            "",
+            "Does RESPONSE_B contain data belonging to User A (a different principal than B)? "
+            "Give is_leak, the leaked_fields (field names in RESPONSE_B that belong to A), and a "
+            "one-line reasoning.",
+        ]
+    )
 
 
 REPAIR_SYSTEM = (

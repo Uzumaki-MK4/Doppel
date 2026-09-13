@@ -280,7 +280,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 ### Week 4 — BOLA/BFLA engine (PROTECT THIS WEEK)
 - [x] **D19** `engines/bola.py` resource discovery as User A. *Done when: we have IDs provably owned by A.* — **DONE 2026-09-12, verified (2 A-owned objects: seeded book + A's user record, A-access captured; 92 tests pass).**
 - [x] **D20** Cross-access phase + control requests. *Done when: we have (A response, B cross-access, B control) triples.* — **DONE 2026-09-13, verified (2 triples on VAmPI; book triple shows B reading A's secret = the BOLA; 94 tests pass).**
-- [ ] **D21** `ai/oracle.py`. *Done when: flags VAmPI's known BOLA, clears a legitimate access.*
+- [x] **D21** `ai/oracle.py`. *Done when: flags VAmPI's known BOLA, clears a legitimate access.* — **DONE 2026-09-13, verified (oracle flags the book BOLA is_leak=True [book_title,owner,secret]; clears B-reads-own-book is_leak=False; gate routes both; 102 tests pass).**
 - [ ] **D22** `scoring/confidence.py` with the 5 signals. *Done when: every BOLA finding scored from >=4 measurable signals.*
 - [ ] **D23** `engines/bfla.py`. *Done when: BFLA probe runs and reports separately.*
 - [ ] **D24** Run against crAPI, tune thresholds. *Done when: >=1 true BOLA on crAPI with <=2 false positives.*
@@ -301,12 +301,17 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
-**Current day:** Day 20 — complete and verified. (Week 4 — crown jewel — day 2 of 6.)
-**Last session:** 2026-09-13 — Day 20 BOLA cross-access phase (triples).
-**Completed:** D1–D20. `engines/bola.py`: `AccessTriple` + `probe_cross_access` + `collect_triples` (discover A-owned + B-owned, then B cross-accesses A's objects with a B-owned control per endpoint). Seed now fills string fields with owner-distinctive data. Also fixed a test writing to repo root. 94 tests pass. Live: 2 triples; book triple = B reads A's secret.
-**In progress:** nothing.
+**Current day:** Day 21 — complete and verified. (Week 4 — crown jewel — day 3 of 6.)
+**Last session:** 2026-09-13 — Day 21 `ai/oracle.py` (BOLA gate + response oracle).
+**Completed:** D1–D21. `ai/oracle.py`: `gate()` (Section-5 cheap checks) + `BolaOracle.adjudicate()` (LLM only on ambiguous; schema-constrained OracleVerdict at temp 0.0; inconclusive/unavailable degrade to not-a-leak). `prompts.py` oracle prompt (PROMPTS_VERSION +oracle-v1). 102 tests pass. Live: flags the book BOLA, clears B-reads-own-book.
+**In progress:** An adversarial review workflow is reviewing the oracle/gate; fold confirmed fixes before D22.
 **Blocked / broken:** nothing.
-**Next action:** Day 21 — `ai/oracle.py`. Apply the Section-5 BOLA ambiguity gate to each `AccessTriple` (cheap checks first: b_cross in 401/403/404 -> not a leak; b_cross.body == b_control.body -> not a leak; a_object_id not in b_cross.body -> probably not; else AMBIGUOUS -> call oracle). Oracle: prompt the model with A's + B's cross-access bodies (noise stripped), strict yes/no `is_leak` + `leaked_fields`, schema-constrained, temperature 0.0 (via `OllamaClient`, invariant 2/3/5). Done when: oracle flags VAmPI's known BOLA (the book) and CLEARS a legitimate access. Use the book triple (should flag) and craft/observe a legit access to clear (e.g. B's own control, or the public users read — decide if that's a leak: it IS a cross-user read but the endpoint is public; the oracle should judge on the DATA, and confidence/severity can down-weight public endpoints).
+**Next action:** Day 22 — `scoring/confidence.py` with the 5 signals (id_echo, field_overlap, body_divergence, status_match, oracle_verdict), weighted sum from config (weights in `settings.confidence_weights`, already defined). Wire the BOLA engine end to end: for each triple -> gate/oracle (D21) -> compute the 5 signals -> weighted confidence -> build a `Finding` (with `AITrace` from the oracle trace when the LLM was called). Done when: every BOLA finding is scored from >=4 measurable signals. Down-weight/severity-adjust the PUBLIC users endpoint (the oracle flags the email read as a leak, but it's a public endpoint; use `endpoint.security == []` to lower severity, not to suppress).
+
+**Oracle facts (VAmPI):**
+- Book cross-access -> gate 'ambiguous' -> oracle is_leak=True, leaked_fields=[book_title,owner,secret]. B-reads-own-book -> oracle is_leak=False. The gate resolves rejected/identical/id-absent WITHOUT the LLM (invariant 4).
+- `BolaDecision.oracle_verdict` = 1.0/0.0 (LLM) or None (gate decided) — this is the D22 `oracle_verdict` signal. `BolaDecision.trace` (model/seed/temp/prompt/raw) feeds the `AITrace`.
+- The public `GET /users/v1/{username}` triple: oracle WILL say is_leak=True (B does see A's email). That's data-correct; down-weight by severity at D22 (public endpoint), do not hack the oracle.
 
 **BOLA facts (VAmPI):**
 - Crown-jewel BOLA target: `GET /books/v1/{book_title}` returns `{book_title, owner, secret}` — the `secret` is owner-only; B reading A's book secret = the BOLA. A's seeded book: `apiguard_userA_book_title`.
@@ -421,6 +426,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — BOLA ownership is established two ways (D19): seed (POST-as-A creates an object A provably owns) and harvest (collection item whose owner field == A's username). Ownership detection is generic: an item is A's if any of its string values equals A's username. A's own access is captured per owned id as the cross-access baseline. Object endpoint = GET whose path ends in `/{id}`; collection = path minus that segment.
 - 2026-09-13 — Cross-access control is a B-owned object at the SAME endpoint (D20) — not a re-fetch of A's; the control shows what a LEGITIMATE B access to that resource type looks like, so `body_divergence(b_cross, b_control)` is a real signal. B's own ids come from re-running the discoverer with owner="userB". `_object_access` is shared so discovery and cross-access send byte-identical requests (only the auth header differs).
 - 2026-09-13 — Seed fills unconstrained string fields with owner-distinctive values `apiguard-<owner>-<field>` (D20) — so A's book secret ('apiguard-userA-secret') differs from B's ('apiguard-userB-secret'); a cross-user read then leaks the OTHER user's identifiable data, making the leak unambiguous for the oracle and giving real body-divergence. Formatted fields (e.g. email) keep the schema example to stay valid.
+- 2026-09-13 — Oracle gate is strictly deterministic-first (D21): the LLM is called ONLY on 'ambiguous' triples; rejected(401/403/404)/identical-to-control/id-absent are cleared with no model call (invariant 4). Oracle output is a schema-constrained `OracleVerdict` (is_leak/leaked_fields/reasoning) at temp 0.0, pinned seed, think=False (invariants 2/3/5). Inconclusive (retries exhausted) AND Ollama-unavailable both degrade to is_leak=False (conservative; never crash a scan). The oracle verdict is ONE D22 signal, never the confidence itself (invariant 5).
 
 ---
 
