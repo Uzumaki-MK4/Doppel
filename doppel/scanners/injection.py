@@ -165,7 +165,7 @@ class InjectionScanner(Scanner):
         This is the kind of injection that returns a normal 200 and is invisible to
         error/status-based detection.
         """
-        base = "doppelnx0"  # a value unlikely to exist, so the OR drives the result
+        base = "apiguardnx0"  # legacy marker prefix, kept as "apiguard*" so replay matches the recorded cassette (do NOT rename); a value unlikely to exist, so the OR drives the result
         true_ex, _ = await self._send_payload(endpoint, param, f"{base}' OR '1'='1", headers)
         false_ex, _ = await self._send_payload(endpoint, param, f"{base}' OR '1'='2", headers)
 
