@@ -1,4 +1,4 @@
-"""Tests for apiguard.ai.client — schema enforcement, retry, logging (Day 13).
+"""Tests for doppel.ai.client — schema enforcement, retry, logging (Day 13).
 
 No live Ollama: a fake chat client is injected.
 """
@@ -9,7 +9,7 @@ import types
 
 from pydantic import BaseModel
 
-from apiguard.ai.client import OllamaClient
+from doppel.ai.client import OllamaClient
 
 
 class Verdict(BaseModel):

@@ -1,4 +1,4 @@
-# APIGuard configuration example.
+# Doppel configuration example.
 # Copy to config.yaml and edit. config.yaml is gitignored (it holds credentials).
 # Values here are placeholders; scan-tuning values are calibrated later (see BRAIN.md D22-D24).
 

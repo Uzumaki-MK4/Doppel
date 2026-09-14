@@ -1,11 +1,11 @@
-"""Day-24 crAPI BOLA validation — run APIGuard's real engine against crAPI.
+"""Day-24 crAPI BOLA validation — run Doppel's real engine against crAPI.
 
 This is a thin consumer of the engine (invariant 1). It exists to answer the
 Day-24 done-condition: ">=1 true BOLA on crAPI with <=2 false positives" — and,
 more importantly, to prove the *contribution* (the ambiguity gate + AI oracle +
 confidence scoring) works unmodified on a second, harder target.
 
-Why this is not a plain `apiguard scan`
+Why this is not a plain `doppel scan`
 ----------------------------------------
 The generic `ResourceDiscoverer` (engines/bola.py) establishes A-owned objects by
 POST-seeding a collection and harvesting by owner-field. crAPI's vehicles are NOT
@@ -39,15 +39,15 @@ from pathlib import Path
 
 import httpx
 
-from apiguard.ai.client import OllamaClient
-from apiguard.ai.oracle import BolaOracle, gate
-from apiguard.core.http_engine import HttpEngine
-from apiguard.core.identity import AuthFlow, IdentityManager, Session, UserCredentials
-from apiguard.core.models import Endpoint, Parameter, ScanResult
-from apiguard.core.scope import ScopeGuard
-from apiguard.engines.bola import AccessTriple, OwnedObject, _object_access, probe_cross_access
-from apiguard.runner import bola_finding
-from apiguard.settings import Settings
+from doppel.ai.client import OllamaClient
+from doppel.ai.oracle import BolaOracle, gate
+from doppel.core.http_engine import HttpEngine
+from doppel.core.identity import AuthFlow, IdentityManager, Session, UserCredentials
+from doppel.core.models import Endpoint, Parameter, ScanResult
+from doppel.core.scope import ScopeGuard
+from doppel.engines.bola import AccessTriple, OwnedObject, _object_access, probe_cross_access
+from doppel.runner import bola_finding
+from doppel.settings import Settings
 
 GATEWAY = "http://127.0.0.1:8888"
 MAILHOG = "http://127.0.0.1:8025"
@@ -165,7 +165,7 @@ async def main() -> int:
         await bootstrap_owner(engine, base, OWNER_A_EMAIL)
         await bootstrap_owner(engine, base, OWNER_B_EMAIL)
 
-        # 2) Log both in through APIGuard's IdentityManager + a crAPI AuthFlow.
+        # 2) Log both in through Doppel's IdentityManager + a crAPI AuthFlow.
         identity = IdentityManager(engine, base, flow=CRAPI_FLOW)
         sessions = await identity.setup({
             "userA": UserCredentials(username=OWNER_A_EMAIL, password=RESET_PW, email=OWNER_A_EMAIL),

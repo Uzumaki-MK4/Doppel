@@ -1,4 +1,4 @@
-"""Tests for apiguard.engines.bola resource discovery (Day 19)."""
+"""Tests for doppel.engines.bola resource discovery (Day 19)."""
 
 import asyncio
 import json
@@ -6,10 +6,10 @@ import json
 import respx
 from httpx import Response
 
-from apiguard.core.http_engine import HttpEngine
-from apiguard.core.identity import Session
-from apiguard.core.models import Endpoint, Parameter
-from apiguard.engines.bola import ResourceDiscoverer
+from doppel.core.http_engine import HttpEngine
+from doppel.core.identity import Session
+from doppel.core.models import Endpoint, Parameter
+from doppel.engines.bola import ResourceDiscoverer
 
 BASE = "http://localhost:5000"
 

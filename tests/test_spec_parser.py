@@ -1,4 +1,4 @@
-"""Tests for apiguard.core.spec_parser and apiguard.core.scope (Day 3)."""
+"""Tests for doppel.core.spec_parser and doppel.core.scope (Day 3)."""
 
 import asyncio
 
@@ -6,8 +6,8 @@ import pytest
 import respx
 from httpx import Response
 
-from apiguard.core.scope import ScopeError, ScopeGuard
-from apiguard.core.spec_parser import _deref, load_spec, parse_spec
+from doppel.core.scope import ScopeError, ScopeGuard
+from doppel.core.spec_parser import _deref, load_spec, parse_spec
 
 # A small, valid OpenAPI 3.0 document with a shared path param, a query param
 # (with a format), an operation-level security requirement, and a request body.

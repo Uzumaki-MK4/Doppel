@@ -7,7 +7,7 @@ import pytest
 import respx
 from httpx import Response
 
-from apiguard.core.http_engine import Cassette, CassetteMiss, HttpEngine, _response_from_stored
+from doppel.core.http_engine import Cassette, CassetteMiss, HttpEngine, _response_from_stored
 
 # Nothing listens on this port: if replay tried the network the test would fail,
 # which is exactly the offline guarantee we want to prove.

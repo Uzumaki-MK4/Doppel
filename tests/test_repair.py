@@ -1,4 +1,4 @@
-"""Tests for apiguard.ai.repair — the self-repair loop (Day 16)."""
+"""Tests for doppel.ai.repair — the self-repair loop (Day 16)."""
 
 import asyncio
 import types
@@ -6,12 +6,12 @@ import types
 import respx
 from httpx import Response
 
-from apiguard.ai.client import OllamaClient
-from apiguard.ai.repair import RepairLoop
-from apiguard.core.http_engine import HttpEngine
-from apiguard.core.models import Endpoint, Parameter
-from apiguard.scanners.base import ScanContext
-from apiguard.scanners.injection import InjectionScanner
+from doppel.ai.client import OllamaClient
+from doppel.ai.repair import RepairLoop
+from doppel.core.http_engine import HttpEngine
+from doppel.core.models import Endpoint, Parameter
+from doppel.scanners.base import ScanContext
+from doppel.scanners.injection import InjectionScanner
 
 BASE = "http://localhost:5000"
 

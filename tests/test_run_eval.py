@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from apiguard.core.models import Endpoint, Evidence, Finding, ScanResult, Severity
+from doppel.core.models import Endpoint, Evidence, Finding, ScanResult, Severity
 
 _RUN_EVAL = Path(__file__).resolve().parent.parent / "benchmark" / "run_eval.py"
 _spec = importlib.util.spec_from_file_location("run_eval", _RUN_EVAL)

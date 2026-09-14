@@ -1,4 +1,4 @@
-"""Tests for apiguard.scanners.jwt_attacks (Day 9)."""
+"""Tests for doppel.scanners.jwt_attacks (Day 9)."""
 
 import asyncio
 import base64
@@ -10,11 +10,11 @@ import time
 import respx
 from httpx import Response
 
-from apiguard.core.http_engine import HttpEngine
-from apiguard.core.identity import Session
-from apiguard.core.models import Endpoint
-from apiguard.scanners.base import ScanContext
-from apiguard.scanners.jwt_attacks import JwtScanner, forge_hs256, forge_none, token_payload
+from doppel.core.http_engine import HttpEngine
+from doppel.core.identity import Session
+from doppel.core.models import Endpoint
+from doppel.scanners.base import ScanContext
+from doppel.scanners.jwt_attacks import JwtScanner, forge_hs256, forge_none, token_payload
 
 BASE = "http://localhost:5000"
 SERVER_SECRET = "topsecret"

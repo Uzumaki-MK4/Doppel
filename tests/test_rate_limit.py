@@ -1,14 +1,14 @@
-"""Tests for apiguard.scanners.rate_limit (Day 10)."""
+"""Tests for doppel.scanners.rate_limit (Day 10)."""
 
 import asyncio
 
 import respx
 from httpx import Response
 
-from apiguard.core.http_engine import HttpEngine
-from apiguard.core.models import Endpoint, Parameter
-from apiguard.scanners.base import ScanContext
-from apiguard.scanners.rate_limit import RateLimitScanner
+from doppel.core.http_engine import HttpEngine
+from doppel.core.models import Endpoint, Parameter
+from doppel.scanners.base import ScanContext
+from doppel.scanners.rate_limit import RateLimitScanner
 
 BASE = "http://localhost:5000"
 

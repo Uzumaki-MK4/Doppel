@@ -1,4 +1,4 @@
-"""Tests for apiguard.scanners.injection (Day 8). respx mocks the target."""
+"""Tests for doppel.scanners.injection (Day 8). respx mocks the target."""
 
 import asyncio
 from urllib.parse import unquote
@@ -6,10 +6,10 @@ from urllib.parse import unquote
 import respx
 from httpx import Response
 
-from apiguard.core.http_engine import HttpEngine
-from apiguard.core.models import Endpoint, Parameter
-from apiguard.scanners.base import ScanContext
-from apiguard.scanners.injection import InjectionScanner, _first_sql_signature
+from doppel.core.http_engine import HttpEngine
+from doppel.core.models import Endpoint, Parameter
+from doppel.scanners.base import ScanContext
+from doppel.scanners.injection import InjectionScanner, _first_sql_signature
 
 BASE = "http://localhost:5000"
 SQL_ERROR = (

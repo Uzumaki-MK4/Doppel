@@ -1,4 +1,4 @@
-# APIGuard — Engineering Journal
+# Doppel — Engineering Journal
 
 One short entry per working day: what was built, what broke, what was decided.
 (BRAIN.md Section 8 holds the live current-state; this is the running history.)
@@ -6,8 +6,8 @@ One short entry per working day: what was built, what broke, what was decided.
 ## Day 1 — 2026-09-12 — Environment & repo skeleton
 
 **Built**
-- Repo skeleton: `apiguard` package (`core`, `scanners`, `ai`, `engines`, `scoring`, `report`), plus `benchmark/`, `tests/`, `cassettes/`, `docs/`, `wordlists/`, `logs/llm/`.
-- `pyproject.toml` — setuptools backend, `requires-python >=3.11`, the fixed BRAIN.md Section 3 stack. `apiguard` console script declared (`apiguard.cli:main`, comes online D6). `pytest`/`respx` in a `[dev]` extra.
+- Repo skeleton: `doppel` package (`core`, `scanners`, `ai`, `engines`, `scoring`, `report`), plus `benchmark/`, `tests/`, `cassettes/`, `docs/`, `wordlists/`, `logs/llm/`.
+- `pyproject.toml` — setuptools backend, `requires-python >=3.11`, the fixed BRAIN.md Section 3 stack. `doppel` console script declared (`doppel.cli:main`, comes online D6). `pytest`/`respx` in a `[dev]` extra.
 - `config.example.yaml` — scope allowlist, pinned `seed: 42`, two temperatures, placeholder confidence weights (summing to 1.0, tuned D22-D24).
 - `.gitignore`, `README.md`.
 - `.venv` on Python 3.11.9 with all deps installed editable (`pip install -e ".[dev]"`).
@@ -32,7 +32,7 @@ One short entry per working day: what was built, what broke, what was decided.
 ## Day 2 — 2026-09-12 — Core data models
 
 **Built**
-- `apiguard/core/models.py`: `Severity` (StrEnum), `Parameter`, `Endpoint`, `Evidence`, `AITrace`, `Finding`, `ScanResult` — all pydantic v2, per BRAIN.md Section 5.
+- `doppel/core/models.py`: `Severity` (StrEnum), `Parameter`, `Endpoint`, `Evidence`, `AITrace`, `Finding`, `ScanResult` — all pydantic v2, per BRAIN.md Section 5.
 - `tests/test_models.py`: 6 tests — Finding round-trip, confidence bounds, `extra=forbid`, severity-as-string, AITrace optional/attaches, ScanResult counts + round-trip.
 
 **Verified — Day 2 done-condition met**
@@ -52,13 +52,13 @@ One short entry per working day: what was built, what broke, what was decided.
 ## Day 3 — 2026-09-12 — Spec parser, scope guard, parse CLI
 
 **Built**
-- `apiguard/core/spec_parser.py`: async `load_spec` (scope-guard -> httpx fetch / file read -> `openapi-spec-validator` -> internal `$ref` deref) and pure `parse_spec(dict) -> list[Endpoint]` mapping params, `requestBody`, and per-operation `security`.
-- `apiguard/core/scope.py`: invariant-7 `ScopeGuard`. Host must be allowlisted; non-localhost also needs `--confirm-authorized`.
-- `apiguard/cli.py`: thin `apiguard parse <url>` with a rich table and clean (traceback-free) error handling. Root callback keeps subcommand style.
+- `doppel/core/spec_parser.py`: async `load_spec` (scope-guard -> httpx fetch / file read -> `openapi-spec-validator` -> internal `$ref` deref) and pure `parse_spec(dict) -> list[Endpoint]` mapping params, `requestBody`, and per-operation `security`.
+- `doppel/core/scope.py`: invariant-7 `ScopeGuard`. Host must be allowlisted; non-localhost also needs `--confirm-authorized`.
+- `doppel/cli.py`: thin `doppel parse <url>` with a rich table and clean (traceback-free) error handling. Root callback keeps subcommand style.
 - `tests/test_spec_parser.py`: inline parse, `$ref` deref, scope rules, respx HTTP load, out-of-scope block.
 
 **Verified — Day 3 done-condition met**
-- `apiguard parse http://localhost:5000/openapi.json` -> table of 14 VAmPI operations (12 paths) with params/body/security correctly extracted.
+- `doppel parse http://localhost:5000/openapi.json` -> table of 14 VAmPI operations (12 paths) with params/body/security correctly extracted.
 - `pytest -q` -> 12 passed.
 - Scope guard refuses a non-localhost host cleanly (exit 2), and `--confirm-authorized` does not bypass the allowlist.
 
@@ -77,7 +77,7 @@ One short entry per working day: what was built, what broke, what was decided.
 ## Day 4 — 2026-09-12 — Async HTTP engine
 
 **Built**
-- `apiguard/core/http_engine.py`: `HttpEngine` (one shared `httpx.AsyncClient`, concurrency semaphore, async min-interval rate limiter, transport-only retries, `requests_sent` counter) returning `HttpExchange` (raw response + `Evidence` with curl repro). Pure `build_request` (path/query placeholder fill + example JSON body) and `build_curl`.
+- `doppel/core/http_engine.py`: `HttpEngine` (one shared `httpx.AsyncClient`, concurrency semaphore, async min-interval rate limiter, transport-only retries, `requests_sent` counter) returning `HttpExchange` (raw response + `Evidence` with curl repro). Pure `build_request` (path/query placeholder fill + example JSON body) and `build_curl`.
 - `tests/test_http_engine.py`: 8 tests — request building, example body, curl quoting, evidence capture, transport-error retry, probe, rate-limiter spacing.
 
 **Verified — Day 4 done-condition met**
@@ -102,8 +102,8 @@ One short entry per working day: what was built, what broke, what was decided.
 - Real footgun: a JSON POST without `Content-Type` gets 415 from VAmPI. Fixed by adding `HttpEngine.send(json_body=...)`.
 
 **Built**
-- `apiguard/core/identity.py`: `IdentityManager` (register best-effort -> login -> cached `Session` with Bearer headers), `session_for(name)`, and an `AuthFlow` config (VAmPI defaults) so the flow is not hardcoded. Engine injected (shared client).
-- `apiguard/core/http_engine.py`: `send(json_body=...)`.
+- `doppel/core/identity.py`: `IdentityManager` (register best-effort -> login -> cached `Session` with Bearer headers), `session_for(name)`, and an `AuthFlow` config (VAmPI defaults) so the flow is not hardcoded. Engine injected (shared client).
+- `doppel/core/http_engine.py`: `send(json_body=...)`.
 - `tests/test_identity.py` (6) + a `json_body` test (1).
 
 **Verified — Day 5 done-condition met**
@@ -120,14 +120,14 @@ One short entry per working day: what was built, what broke, what was decided.
 ## Day 6 — 2026-09-12 — settings + runner + scan --dry-run (WEEK 1 DONE)
 
 **Built**
-- `apiguard/settings.py`: pydantic-settings loader. `load_settings()` reads `config.yaml` or uses defaults (model/seed, scope allowlist, two disposable VAmPI users, http params, confidence weights). Zero-config so dry-run runs out of the box.
-- `apiguard/runner.py` (new module, recorded in BRAIN Section 4): `dry_run()` parses the spec, logs in both users via `IdentityManager`, touches every endpoint as User A, returns a `ScanResult`. Progress via callback (rich stays in the CLI).
-- `apiguard/cli.py`: `scan --spec <url> --dry-run` — thin wrapper with a rich progress bar and a summary table.
+- `doppel/settings.py`: pydantic-settings loader. `load_settings()` reads `config.yaml` or uses defaults (model/seed, scope allowlist, two disposable VAmPI users, http params, confidence weights). Zero-config so dry-run runs out of the box.
+- `doppel/runner.py` (new module, recorded in BRAIN Section 4): `dry_run()` parses the spec, logs in both users via `IdentityManager`, touches every endpoint as User A, returns a `ScanResult`. Progress via callback (rich stays in the CLI).
+- `doppel/cli.py`: `scan --spec <url> --dry-run` — thin wrapper with a rich progress bar and a summary table.
 - `config.example.yaml`: users now carry passwords (match the defaults).
 - Tests: settings (4), runner (3).
 
 **Verified — Day 6 done-condition met; WEEK 1 COMPLETE**
-- `apiguard scan --spec http://localhost:5000/openapi.json --dry-run` -> parsed, logged in both users, touched all 14 endpoints; summary shows 18 requests (4 auth + 14 probes), 0 findings. VAmPI reset -> 200.
+- `doppel scan --spec http://localhost:5000/openapi.json --dry-run` -> parsed, logged in both users, touched all 14 endpoints; summary shows 18 requests (4 auth + 14 probes), 0 findings. VAmPI reset -> 200.
 - `pytest -q` -> 34 passed.
 
 **Decided** — see BRAIN.md Section 9 (runner module, minimal settings.py, dry-run touches as User A / is not no-network).
@@ -143,11 +143,11 @@ One short entry per working day: what was built, what broke, what was decided.
 ## Day 7 — 2026-09-12 — Scanner ABC + registry (Week 2 begins)
 
 **Built**
-- `apiguard/scanners/base.py`: `Scanner` ABC (`async run(endpoint) -> list[Finding]`), `ScanContext` (engine/base_url/settings/sessions injected at construction), `__init_subclass__` auto-registration (gated on a non-empty `name`), `discover_scanners()` (imports every package module so a dropped file registers), `registered_scanners()`, `build_scanners()`.
+- `doppel/scanners/base.py`: `Scanner` ABC (`async run(endpoint) -> list[Finding]`), `ScanContext` (engine/base_url/settings/sessions injected at construction), `__init_subclass__` auto-registration (gated on a non-empty `name`), `discover_scanners()` (imports every package module so a dropped file registers), `registered_scanners()`, `build_scanners()`.
 - `tests/test_scanners_base.py`: 5 tests — auto-register, duplicate-name error, nameless-not-registered, build+run a dummy, discovery idempotent.
 
 **Verified — Day 7 done-condition met**
-- Live: a scanner file dropped into `apiguard/scanners/` was auto-discovered by `discover_scanners()` (registry `[]` -> `['dropped_demo']`) with no CLI/registry edit; temp file cleaned up.
+- Live: a scanner file dropped into `doppel/scanners/` was auto-discovered by `discover_scanners()` (registry `[]` -> `['dropped_demo']`) with no CLI/registry edit; temp file cleaned up.
 - `pytest -q` -> 39 passed.
 
 **Decided** — see BRAIN.md Section 9 (name-gated registration, ScanContext injection).
@@ -163,7 +163,7 @@ One short entry per working day: what was built, what broke, what was decided.
 - VAmPI SQLi is in `GET /users/v1/{username}` path param: a `'` -> 500 with `sqlalchemy.exc.OperationalError (sqlite3.OperationalError) unrecognized token` (and it leaks the SQL). Login body is NOT injectable.
 
 **Built**
-- `apiguard/scanners/injection.py`: `InjectionScanner` — one loop over path/query params. SQLi = error-signature match (present with payload, absent in baseline) + time-delay (secondary; won't fire on SQLite). XSS = marker reflected unescaped in an HTML content-type.
+- `doppel/scanners/injection.py`: `InjectionScanner` — one loop over path/query params. SQLi = error-signature match (present with payload, absent in baseline) + time-delay (secondary; won't fire on SQLite). XSS = marker reflected unescaped in an HTML content-type.
 - `wordlists/sqli.txt`, `wordlists/xss.txt` (static payloads; built-in fallback).
 - `tests/test_injection.py`: 6 tests (signature matcher, error-based SQLi, clean = no finding, HTML XSS, JSON echo not flagged).
 
@@ -184,8 +184,8 @@ One short entry per working day: what was built, what broke, what was decided.
 - VAmPI REJECTS alg:none and signature-strip (401). It ACCEPTS a token forged with the weak HS256 secret **`random`** (200). So VAmPI's JWT weakness is a guessable signing secret, not alg confusion.
 
 **Built**
-- `apiguard/scanners/jwt_attacks.py`: forges alg:none, sig-strip, weak-secret (HS256 re-sign from a wordlist) and expired tokens (stdlib only), flags any the server accepts vs a garbage-token baseline. Runs once on an idempotent authed GET.
-- `apiguard/scanners/ssrf.py`: injects metadata/internal URLs into URL-shaped params; flags on metadata signatures.
+- `doppel/scanners/jwt_attacks.py`: forges alg:none, sig-strip, weak-secret (HS256 re-sign from a wordlist) and expired tokens (stdlib only), flags any the server accepts vs a garbage-token baseline. Runs once on an idempotent authed GET.
+- `doppel/scanners/ssrf.py`: injects metadata/internal URLs into URL-shaped params; flags on metadata signatures.
 - `wordlists/jwt_secrets.txt`.
 - `tests/test_jwt_attacks.py` (5, incl. a real HS256-validating mock server), `tests/test_ssrf.py` (3).
 
@@ -209,14 +209,14 @@ One short entry per working day: what was built, what broke, what was decided.
 - VAmPI: no security headers; `Server: Werkzeug/2.2.3 Python/3.11.15` disclosed; no CORS headers. `GET /books/v1` unauth is 200 (500 only when DB uninitialized) and serves data despite spec auth -> BFLA signal for Week 4. Corrected the earlier "500" note.
 
 **Built**
-- `apiguard/scanners/misconfig.py`: missing security headers, server/version disclosure, permissive CORS (checked once), verbose-error/stack-trace per endpoint.
-- `apiguard/scanners/rate_limit.py`: bursts a no-param GET, flags absence of 429 (runs once).
+- `doppel/scanners/misconfig.py`: missing security headers, server/version disclosure, permissive CORS (checked once), verbose-error/stack-trace per endpoint.
+- `doppel/scanners/rate_limit.py`: bursts a no-param GET, flags absence of 429 (runs once).
 - `runner.scan()`: sequential fan-out of `build_scanners()` over every endpoint, collecting findings into a `ScanResult`.
-- `apiguard/cli.py`: `apiguard scan` (no --dry-run) runs the real scan and renders a findings table (severity-sorted, coloured).
+- `doppel/cli.py`: `doppel scan` (no --dry-run) runs the real scan and renders a findings table (severity-sorted, coloured).
 - Tests: misconfig (4), rate_limit (3), runner scan integration (1).
 
 **Verified — Day 10 done-condition met**
-- Live: `apiguard scan --spec http://localhost:5000/openapi.json` -> 5 findings (CRITICAL weak JWT secret; HIGH SQLi; LOW missing-headers, version-disclosure, no-rate-limit), 0 false positives, 119 requests across 14 endpoints.
+- Live: `doppel scan --spec http://localhost:5000/openapi.json` -> 5 findings (CRITICAL weak JWT secret; HIGH SQLi; LOW missing-headers, version-disclosure, no-rate-limit), 0 false positives, 119 requests across 14 endpoints.
 - `pytest -q` -> 60 passed.
 
 **Decided** — see BRAIN.md Section 9 (sequential fan-out, misconfig global-once, rate_limit burst-via-engine caveat).
@@ -229,13 +229,13 @@ One short entry per working day: what was built, what broke, what was decided.
 ## Day 11 — 2026-09-12 — Findings post-processing (dedup / OWASP / evidence)
 
 **Built**
-- `apiguard/core/findings.py`: OWASP API Top 10 2023 catalog (`owasp_name`, `is_valid_owasp_id`), `DEFAULT_SEVERITY` reference table, `dedupe()` (collapse by id, keep highest severity then confidence), `finalize()` (dedupe + validate curl repro & OWASP id + stable severity sort).
+- `doppel/core/findings.py`: OWASP API Top 10 2023 catalog (`owasp_name`, `is_valid_owasp_id`), `DEFAULT_SEVERITY` reference table, `dedupe()` (collapse by id, keep highest severity then confidence), `finalize()` (dedupe + validate curl repro & OWASP id + stable severity sort).
 - `runner.scan()` now finalizes findings before building the `ScanResult`.
 - `cli.py`: findings table gained an OWASP column; sorting delegated to `finalize()`.
 - `tests/test_findings.py`: 7 tests (catalog, dedup by severity/confidence, sort order, evidence + OWASP validation, no-dupes invariant).
 
 **Verified — Day 11 done-condition met**
-- Live: `apiguard scan` -> 5 findings, 5 unique ids (0 dupes), every finding carries a curl repro, all OWASP-mapped (API2/API8/API4).
+- Live: `doppel scan` -> 5 findings, 5 unique ids (0 dupes), every finding carries a curl repro, all OWASP-mapped (API2/API8/API4).
 - `pytest -q` -> 67 passed.
 
 **Decided** — see BRAIN.md Section 9 (keep descriptive ids as canonical, injection stays API8:2023 documented).
@@ -248,10 +248,10 @@ One short entry per working day: what was built, what broke, what was decided.
 ## Day 12 — 2026-09-12 — Cassettes + baseline.json (WEEK 2 DONE)
 
 **Built**
-- `apiguard/core/http_engine.py`: `Cassette` (record/replay) + `CassetteMiss`; `HttpEngine(cassette=...)`; key = method + final url + body + significant headers (authorization/origin/content-type). Replay returns stored responses with no network; a miss raises.
-- `apiguard/core/spec_parser.py`: `load_spec(engine=...)` routes the spec fetch through the engine so replay is fully offline.
-- `apiguard/runner.py`: `scan(record_dir=, replay_dir=)` builds/saves the cassette; stores `meta.spec_source`.
-- `apiguard/cli.py`: `apiguard scan --record DIR --replay DIR --out FILE` (replay needs no --spec).
+- `doppel/core/http_engine.py`: `Cassette` (record/replay) + `CassetteMiss`; `HttpEngine(cassette=...)`; key = method + final url + body + significant headers (authorization/origin/content-type). Replay returns stored responses with no network; a miss raises.
+- `doppel/core/spec_parser.py`: `load_spec(engine=...)` routes the spec fetch through the engine so replay is fully offline.
+- `doppel/runner.py`: `scan(record_dir=, replay_dir=)` builds/saves the cassette; stores `meta.spec_source`.
+- `doppel/cli.py`: `doppel scan --record DIR --replay DIR --out FILE` (replay needs no --spec).
 - `tests/test_cassette.py`: 2 tests (record->replay offline using an unreachable port; miss raises).
 
 **Broke, then fixed (found live)**
@@ -260,7 +260,7 @@ One short entry per working day: what was built, what broke, what was decided.
 **Verified — Day 12 done-condition met; WEEK 2 COMPLETE**
 - `pytest -q` -> 69 passed.
 - `benchmark/results/baseline.json` saved (static arm: 5 findings, 120 requests, 14 endpoints).
-- Recorded `cassettes/vampi/`; with the VAmPI container STOPPED, `apiguard scan --replay cassettes/vampi` reproduced the identical 5 findings (offline).
+- Recorded `cassettes/vampi/`; with the VAmPI container STOPPED, `doppel scan --replay cassettes/vampi` reproduced the identical 5 findings (offline).
 - (Ultracode) ran a background adversarial review workflow over the cassette code.
 - Review confirmed 10 issues; fixed the real ones (ordered per-key replay for the rate-limit burst; strip Content-Encoding on replay; reject bad flag combos; spec-fetch status check; deterministic JWT expired token) and documented the live-only limits (timing, non-UTF-8). Re-verified: 71 tests; offline replay still reproduces 5 findings.
 
@@ -275,7 +275,7 @@ One short entry per working day: what was built, what broke, what was decided.
 ## Day 13 — 2026-09-12 — Ollama client (schema-enforced structured output)
 
 **Built**
-- `apiguard/ai/client.py`: `OllamaClient.structured(response_model, prompt/system/messages, temperature, label)` -> `StructuredResult`. Sends chat with `format`=pydantic schema, `think=False`, pinned seed, given temperature; validates with `model_validate_json` (never regex). Retries <=2 on invalid output (seed bumped per attempt for reproducible-yet-different retries); inconclusive result on exhaustion. Logs every call to `logs/llm/`. Underlying client injectable (`client=`) for tests.
+- `doppel/ai/client.py`: `OllamaClient.structured(response_model, prompt/system/messages, temperature, label)` -> `StructuredResult`. Sends chat with `format`=pydantic schema, `think=False`, pinned seed, given temperature; validates with `model_validate_json` (never regex). Retries <=2 on invalid output (seed bumped per attempt for reproducible-yet-different retries); inconclusive result on exhaustion. Logs every call to `logs/llm/`. Underlying client injectable (`client=`) for tests.
 - `tests/test_ai_client.py`: 5 tests (valid first try + options/format/think asserted, retry-then-success seed bump, exhausted=inconclusive, logging, system+temperature threading) using an injected fake.
 
 **Verified — Day 13 done-condition met**
@@ -292,7 +292,7 @@ One short entry per working day: what was built, what broke, what was decided.
 ## Day 14 — 2026-09-12 — Payload-generation prompt (context-aware)
 
 **Built**
-- `apiguard/ai/prompts.py`: `PROMPTS_VERSION`, `PayloadCandidate`/`PayloadSet` (structured output), `PAYLOAD_SYSTEM`, and `payload_user_prompt()` carrying name/type/format/example/endpoint/schema and instructing type/format-tailored payloads (email -> localpart@domain.tld with the attack hidden inside).
+- `doppel/ai/prompts.py`: `PROMPTS_VERSION`, `PayloadCandidate`/`PayloadSet` (structured output), `PAYLOAD_SYSTEM`, and `payload_user_prompt()` carrying name/type/format/example/endpoint/schema and instructing type/format-tailored payloads (email -> localpart@domain.tld with the attack hidden inside).
 - `tests/test_prompts.py`: 4 tests (full context present, email tailoring instruction, PayloadSet schema round-trip, version string).
 
 **Verified — Day 14 done-condition met**
@@ -312,13 +312,13 @@ One short entry per working day: what was built, what broke, what was decided.
 ## Day 15 — 2026-09-12 — AI payloads wired behind --payloads {static,ai,both}
 
 **Built**
-- `apiguard/ai/payload_gen.py`: `PayloadGenerator.for_parameter()` — context-aware payloads via the prompt + OllamaClient, bucketed sqli/xss, deduped, cached by param shape, graceful on Ollama error.
+- `doppel/ai/payload_gen.py`: `PayloadGenerator.for_parameter()` — context-aware payloads via the prompt + OllamaClient, bucketed sqli/xss, deduped, cached by param shape, graceful on Ollama error.
 - `ScanContext` gains `payload_mode` + `payload_generator`; the injection scanner picks payloads per parameter by mode (`_payloads_for`).
 - `runner.scan` builds the generator for ai/both and degrades to static if Ollama is unreachable (invariant 4); records the effective mode. `cli` `--payloads` flag; summary shows `payloads=<mode>`. `OllamaClient.available()`.
 - `tests/test_payload_gen.py`: 4 (bucket/dedupe, cache-by-shape, graceful-on-error, injection consumes AI payloads via a fake generator).
 
 **Verified — Day 15 done-condition met**
-- Live: `apiguard scan --payloads ai` runs end to end (4 findings, payloads=ai, 79 requests).
+- Live: `doppel scan --payloads ai` runs end to end (4 findings, payloads=ai, 79 requests).
 - `pytest -q` -> 84 passed.
 
 **KEY honest observation (ablation signal)**
@@ -337,8 +337,8 @@ One short entry per working day: what was built, what broke, what was decided.
 - VAmPI (connexion) returns descriptive 400s: missing required field ("'email' is a required property"), wrong type ("123 is not of type 'string'"), non-object body. These are the rejections repair can fix.
 
 **Built**
-- `apiguard/ai/repair.py`: `RepairLoop.repair_value(send, initial_value, context, error_body, attack_goal)` — feeds the server's error back to the model (versioned repair prompt), gets a corrected value, re-sends via the caller's `send` callback, loops up to 2; never raises. `RepairResult` carries the final exchange + history.
-- `apiguard/ai/prompts.py`: `REPAIR_SYSTEM`, `RepairedPayload`, `repair_user_prompt`; `PROMPTS_VERSION` bumped.
+- `doppel/ai/repair.py`: `RepairLoop.repair_value(send, initial_value, context, error_body, attack_goal)` — feeds the server's error back to the model (versioned repair prompt), gets a corrected value, re-sends via the caller's `send` callback, loops up to 2; never raises. `RepairResult` carries the final exchange + history.
+- `doppel/ai/prompts.py`: `REPAIR_SYSTEM`, `RepairedPayload`, `repair_user_prompt`; `PROMPTS_VERSION` bumped.
 - `ScanContext.repair_loop`; runner builds it for ai/both; injection scanner `_send_payload` repairs a 400/422'd payload then re-probes (detection runs on the repaired response).
 - `tests/test_repair.py`: 3 (repair succeeds on retry, gives up after cap, injection repairs a rejected payload then detects).
 
@@ -409,7 +409,7 @@ One short entry per working day: what was built, what broke, what was decided.
 - VAmPI books: collection `GET /books/v1` -> `{"Books":[{book_title, user}]}`; object `GET /books/v1/{book_title}` -> `{book_title, owner, secret}` (secret is owner-only = the BOLA); `POST /books/v1` creates a book owned by the creator. Users: `GET /users/v1/{username}` -> `{username,email}` (public).
 
 **Built**
-- `apiguard/engines/bola.py`: `ResourceDiscoverer.discover()` -> `list[OwnedObject]`. Finds object endpoints (GET ending in `/{id}`), establishes A-owned ids via seed (POST-as-A) + harvest (collection item whose owner field == A's username), and captures A's own successful access per id.
+- `doppel/engines/bola.py`: `ResourceDiscoverer.discover()` -> `list[OwnedObject]`. Finds object endpoints (GET ending in `/{id}`), establishes A-owned ids via seed (POST-as-A) + harvest (collection item whose owner field == A's username), and captures A's own successful access per id.
 - `tests/test_bola_discovery.py`: 2 (seed+harvest + attribution excludes other users' objects; no-collection is safe).
 
 **Verified — Day 19 done-condition met**
@@ -426,7 +426,7 @@ One short entry per working day: what was built, what broke, what was decided.
 ## Day 20 — 2026-09-13 — BOLA cross-access phase (triples)
 
 **Built**
-- `apiguard/engines/bola.py`: `AccessTriple` (a_access, b_cross_access, b_control), `probe_cross_access` (B accesses each A-owned object + a B-owned control at the same endpoint), `collect_triples` (discover A + B owned, then probe). Shared `_object_access` helper so discovery and cross-access build identical requests.
+- `doppel/engines/bola.py`: `AccessTriple` (a_access, b_cross_access, b_control), `probe_cross_access` (B accesses each A-owned object + a B-owned control at the same endpoint), `collect_triples` (discover A + B owned, then probe). Shared `_object_access` helper so discovery and cross-access build identical requests.
 - Seed improvement: unconstrained string fields set to owner-distinctive values (`apiguard-<owner>-<field>`), so a cross-user read leaks the OTHER user's identifiable data.
 - Hygiene: fixed `test_repair.py` writing a log to the repo root (log_dir -> tmp_path); removed the stray `0001-repair.json`.
 - `tests/test_bola_crossaccess.py`: 2 (cross-access leak triple; control absent when attacker owns nothing).
@@ -445,8 +445,8 @@ One short entry per working day: what was built, what broke, what was decided.
 ## Day 21 — 2026-09-13 — BOLA response oracle + ambiguity gate (semantic heart)
 
 **Built**
-- `apiguard/ai/oracle.py`: `gate(triple)` (Section-5 cheap checks) and `BolaOracle.adjudicate` (LLM only on 'ambiguous'; schema-constrained `OracleVerdict` at temp 0.0; 'inconclusive' and 'unavailable' both degrade to not-a-leak, never crash). `BolaDecision` carries is_leak/leaked_fields/reasoning/decided_by/oracle_verdict/trace for D22.
-- `apiguard/ai/prompts.py`: `OracleVerdict`, `ORACLE_SYSTEM`, `oracle_user_prompt` (RESPONSE_A vs RESPONSE_B, noise-truncated). PROMPTS_VERSION += oracle-v1.
+- `doppel/ai/oracle.py`: `gate(triple)` (Section-5 cheap checks) and `BolaOracle.adjudicate` (LLM only on 'ambiguous'; schema-constrained `OracleVerdict` at temp 0.0; 'inconclusive' and 'unavailable' both degrade to not-a-leak, never crash). `BolaDecision` carries is_leak/leaked_fields/reasoning/decided_by/oracle_verdict/trace for D22.
+- `doppel/ai/prompts.py`: `OracleVerdict`, `ORACLE_SYSTEM`, `oracle_user_prompt` (RESPONSE_A vs RESPONSE_B, noise-truncated). PROMPTS_VERSION += oracle-v1.
 - `tests/test_oracle.py`: 8 (each gate path; oracle flag/clear; gate-decision-skips-LLM; inconclusive = not a leak).
 
 **Verified — Day 21 done-condition met**
@@ -468,9 +468,9 @@ One short entry per working day: what was built, what broke, what was decided.
 **D21 review folded in first** (separate fix commit): removed the id-absent gate clear (dropped real URL-only-id leaks), hardened the oracle prompt vs injection (fence + untrusted framing; residual risk documented), widened truncation 1200->4000, narrowed the oracle except.
 
 **Built**
-- `apiguard/scoring/confidence.py`: the 5 Section-5 signals (id_echo, field_overlap = Jaccard of top-level keys, body_divergence vs B's control, status_match, oracle_verdict) + `confidence()` as a weight-normalised mean over the PRESENT signals.
-- `apiguard/runner.py`: `find_bola_findings` (triples -> gate/oracle -> signals -> confidence -> Finding, API1:2023, HIGH / public MEDIUM, AITrace = oracle trace + signals) + `--bola` wiring; re-authenticates before the BOLA phase.
-- `apiguard/cli.py`: `--bola/--no-bola`.
+- `doppel/scoring/confidence.py`: the 5 Section-5 signals (id_echo, field_overlap = Jaccard of top-level keys, body_divergence vs B's control, status_match, oracle_verdict) + `confidence()` as a weight-normalised mean over the PRESENT signals.
+- `doppel/runner.py`: `find_bola_findings` (triples -> gate/oracle -> signals -> confidence -> Finding, API1:2023, HIGH / public MEDIUM, AITrace = oracle trace + signals) + `--bola` wiring; re-authenticates before the BOLA phase.
+- `doppel/cli.py`: `--bola/--no-bola`.
 - `tests/test_confidence.py`: 4 (signals full/partial, confidence normalisation, full BOLA finding scored from >=4 signals).
 
 **Two integration bugs found + fixed (live debugging)**
@@ -478,7 +478,7 @@ One short entry per working day: what was built, what broke, what was decided.
 - While tracing it: injection was probing DELETE/PUT path params with tautology payloads = destructive (mass DELETE/UPDATE). Fixed injection to GET-only (safe; VAmPI SQLi still found).
 
 **Verified — Day 22 done-condition met**
-- Live: `apiguard scan --bola` -> 7 findings incl. 2 BOLA, each scored from 5 signals: HIGH GET /books/v1/{book_title} conf 0.81; MEDIUM GET /users/v1/{username} (public) conf 0.81. `benchmark/results/full.json` saved.
+- Live: `doppel scan --bola` -> 7 findings incl. 2 BOLA, each scored from 5 signals: HIGH GET /books/v1/{book_title} conf 0.81; MEDIUM GET /users/v1/{username} (public) conf 0.81. `benchmark/results/full.json` saved.
 - `pytest -q` -> 107 passed.
 
 **Decided** — see BRAIN.md Section 9 (weight-normalised confidence; injection GET-only safety; BOLA re-auth).
@@ -494,12 +494,12 @@ One short entry per working day: what was built, what broke, what was decided.
 - VAmPI `GET /users/v1/_debug` is PUBLIC (security=[]) and dumps ALL users with plaintext `password` + email + admin flag. The BFLA / excessive-data target.
 
 **Built**
-- `apiguard/engines/bfla.py`: `find_bfla_findings` -- privileged-path detection (segment contains admin/_debug/internal/manage/...), probe as the low-privilege user B (GET only). 2xx-with-data from a privileged function = BFLA (API5:2023); CRITICAL if the body leaks credential markers, else HIGH. Deterministic (no oracle).
+- `doppel/engines/bfla.py`: `find_bfla_findings` -- privileged-path detection (segment contains admin/_debug/internal/manage/...), probe as the low-privilege user B (GET only). 2xx-with-data from a privileged function = BFLA (API5:2023); CRITICAL if the body leaks credential markers, else HIGH. Deterministic (no oracle).
 - `runner.py`: BFLA runs in the engines phase (before the Ollama check, so it works without Ollama), reported separately from BOLA.
 - `tests/test_bfla.py`: 5 (privileged detection; credential-leak CRITICAL; forbidden not flagged; accessible-non-sensitive HIGH; non-privileged skipped).
 
 **Verified — Day 23 done-condition met; WEEK 4 COMPLETE**
-- Live: `apiguard scan --bola` -> CRITICAL BFLA on GET /users/v1/_debug (conf 0.95), reported alongside the 2 BOLA findings. Separate scanner (bfla / API5:2023).
+- Live: `doppel scan --bola` -> CRITICAL BFLA on GET /users/v1/_debug (conf 0.95), reported alongside the 2 BOLA findings. Separate scanner (bfla / API5:2023).
 - `pytest -q` -> 112 passed.
 
 **Week 4 retro (the crown jewel)**
@@ -524,7 +524,7 @@ One short entry per working day: what was built, what broke, what was decided.
 - crAPI seeds demo users (adam007, pogba006, ...) with bcrypt passwords we don't know, and each owns exactly one vehicle. Rather than guess, I drove crAPI's own forgot-password -> OTP -> reset flow: crAPI mails all OTPs to MailHog, so `crapi_bola.py` reads the OTP from MailHog's API and resets two owners to a known password via `v3/check-otp`. (Reading the OTP directly from Postgres was correctly blocked by the auto-mode classifier — MailHog is the right channel anyway.)
 - This proved `AuthFlow` generalises to crAPI with **config only, zero engine code change** (email login, RS256 token, `token_json_key="token"` — VAmPI is HS256).
 
-**The BOLA and why it needed a driver, not `apiguard scan`**
+**The BOLA and why it needed a driver, not `doppel scan`**
 - `GET /identity/api/v2/vehicle/{vehicleId}/location` has no ownership check: any authenticated user reads any vehicle's GPS + owner name + email by uuid. The generic `ResourceDiscoverer` can't auto-seed a crAPI vehicle (they're pre-seeded and email-claim-gated), so `benchmark/crapi_bola.py` supplies the two owner->uuid bindings from crAPI's own `GET /vehicle/vehicles`, then runs the REAL `probe_cross_access` + `BolaOracle` + confidence + `bola_finding` UNMODIFIED. Extracted `runner.bola_finding()` so VAmPI and crAPI build findings through identical code. Honest split: discovery is target plumbing; the contribution (gate/oracle/confidence) generalises unchanged.
 
 **Result (real, reproducible)**
@@ -545,7 +545,7 @@ One short entry per working day: what was built, what broke, what was decided.
 - Done-when: one command prints precision/recall/F1. The real work is building an HONEST ground truth (the recall denominator must include vulns the tool can't detect) and a matcher that joins findings to known vulns on the RIGHT keys.
 
 **Building the ground truth (5-agent workflow, then I verified)**
-- Fanned out 4 enumeration angles (VAmPI source-read, VAmPI live-probe, crAPI, APIGuard detector-surface) + a completeness critic. The critic was the star: it grounded against the actual `run_eval` matcher and the real result JSONs and caught every trap — `Finding.scanner` is `jwt` not the module name `jwt_attacks`; jwt/rate_limit are GLOBAL findings (reported on an incidental endpoint) so they must join on scanner alone; the two misconfig globals share path "/" so they join by `id_contains`; and I had to INCLUDE the MEDIUM `GET /users/v1/{username}` bola or the Full arm's real finding would score as a false positive.
+- Fanned out 4 enumeration angles (VAmPI source-read, VAmPI live-probe, crAPI, Doppel detector-surface) + a completeness critic. The critic was the star: it grounded against the actual `run_eval` matcher and the real result JSONs and caught every trap — `Finding.scanner` is `jwt` not the module name `jwt_attacks`; jwt/rate_limit are GLOBAL findings (reported on an incidental endpoint) so they must join on scanner alone; the two misconfig globals share path "/" so they join by `id_contains`; and I had to INCLUDE the MEDIUM `GET /users/v1/{username}` bola or the Full arm's real finding would score as a false positive.
 - Integrity: agents propose, I verify. I independently re-probed VAmPI's 4 false-negatives — mass-assignment (registered admin:true -> /me admin:true), unauthorized password change (name1 reset name2's password, old fails / new works), enumeration (distinct login messages), RegexDOS (email endpoint reachable). Every ground-truth entry is live-verified.
 
 **The matcher (`run_eval.Match`)**
@@ -557,7 +557,7 @@ One short entry per working day: what was built, what broke, what was decided.
 | baseline/static/ai/ai_repair | vampi | 12 | 5 | 0 | 7 | 1.00 | 0.42 | 0.59 |
 | **full** | vampi | 12 | **8** | 0 | 4 | **1.00** | **0.67** | **0.80** |
 | crapi | crapi | 5 | 1 | 0 | 4 | 1.00 | 0.20 | 0.33 |
-- The Full arm detects exactly the three the baseline can't — `bola-book-secret`, `bola-user-record`, `bfla-debug-dump` — a **+0.25 recall lift at perfect precision**. That jump is the whole thesis: a semantic BOLA/BFLA engine finds 200-OK vulns status/error scanners are blind to. All arms honestly miss the 4 VAmPI vulns APIGuard has no detector for.
+- The Full arm detects exactly the three the baseline can't — `bola-book-secret`, `bola-user-record`, `bfla-debug-dump` — a **+0.25 recall lift at perfect precision**. That jump is the whole thesis: a semantic BOLA/BFLA engine finds 200-OK vulns status/error scanners are blind to. All arms honestly miss the 4 VAmPI vulns Doppel has no detector for.
 - `pytest -q` -> **122 passed** (+9 in tests/test_run_eval.py).
 
 **Most likely to break next (D26)**
@@ -570,17 +570,17 @@ One short entry per working day: what was built, what broke, what was decided.
 ## Day 26 — 2026-09-14 — the result: the ablation table, filled
 
 **What I set out to do**
-- Fill the Section-1 table with real numbers: re-measure the 4 APIGuard arms (request counts were stale after the D22 GET-only change) and add OWASP ZAP as an external baseline.
+- Fill the Section-1 table with real numbers: re-measure the 4 Doppel arms (request counts were stale after the D22 GET-only change) and add OWASP ZAP as an external baseline.
 
-**The 4 APIGuard arms (nested capability ladder)**
+**The 4 Doppel arms (nested capability ladder)**
 - static / ai / ai+repair / full, each adding one capability, so a recall delta attributes to that capability. Fresh VAmPI runs (reset before each): static 5 findings/71 req, ai 5/63, ai+repair 5/63, full 8/82. Confirmed via `run_eval`: static/ai/ai+repair prec 1.00 recall 0.42 (5/12); **full prec 1.00 recall 0.67 (8/12)** — the BOLA/BFLA engine adds book-secret BOLA + public-user BOLA + `_debug` BFLA. AI matches static recall at ~11% fewer requests; repair fired 0 extra requests on VAmPI (honest — its payoff is typed crAPI fields, not VAmPI).
 
 **OWASP ZAP (the external baseline) — and what it took**
 - Ran ZAP in Docker (`ghcr.io/zaproxy/zaproxy:stable`, spec-driven `zap-api-scan.py`) against VAmPI — the fair apples-to-apples (same OpenAPI spec, active scanning). Three real gotchas, now in BRAIN.md §9: the report needs `/zap/wrk` mounted AND world-writable; VAmPI's `servers:[{url:""}]` makes ZAP 404 every path (fixed by feeding a local spec with the base URL rewritten — `-O` did not fix it); Git Bash needs `MSYS_NO_PATHCONV=1` for container paths.
-- Scored ZAP by the IDENTICAL harness via `benchmark/zap_adapt.py` (ZAP alert -> APIGuard match keys; every alert's disposition printed for audit). **ZAP: prec 0.50, recall 0.17 (2/12)** — it finds only missing-headers + version-disclosure. It MISSES all BOLA/BFLA/jwt/rate-limit, and it missed the SQLi too (its active SQLi scanner never fired on the injectable param; it only passively saw SQL in `/createdb`'s 500). Fairness: ZAP's real-but-out-of-scope alerts (SQL/error disclosure on /createdb) are reported but NOT counted as FP — only genuine noise (a bare 500 flagged as an alert, "unexpected content-type") is FP.
+- Scored ZAP by the IDENTICAL harness via `benchmark/zap_adapt.py` (ZAP alert -> Doppel match keys; every alert's disposition printed for audit). **ZAP: prec 0.50, recall 0.17 (2/12)** — it finds only missing-headers + version-disclosure. It MISSES all BOLA/BFLA/jwt/rate-limit, and it missed the SQLi too (its active SQLi scanner never fired on the injectable param; it only passively saw SQL in `/createdb`'s 500). Fairness: ZAP's real-but-out-of-scope alerts (SQL/error disclosure on /createdb) are reported but NOT counted as FP — only genuine noise (a bare 500 flagged as an alert, "unexpected content-type") is FP.
 
 **The headline (measured, not asserted)**
-- APIGuard Full nearly **quadruples ZAP's recall (0.67 vs 0.17) at perfect precision**. ZAP literally retrieved the `_debug` password dump and cross-user data and flagged nothing — because it cannot reason about authorization. That gap is the entire project thesis, now a number.
+- Doppel Full nearly **quadruples ZAP's recall (0.67 vs 0.17) at perfect precision**. ZAP literally retrieved the `_debug` password dump and cross-user data and flagged nothing — because it cannot reason about authorization. That gap is the entire project thesis, now a number.
 - `pytest -q` -> **126 passed** (+4 in tests/test_zap_adapt.py). Raw ZAP report committed as `benchmark/zap_report.json` (evidence).
 
 **Most likely to break next**
@@ -596,7 +596,7 @@ One short entry per working day: what was built, what broke, what was decided.
 - `scan --report out.html` produces something presentable, and it must surface the AI oracle trace for the BOLA findings — that explainability is the selling point.
 
 **Built**
-- `apiguard/report/generator.py` (`render_report` / `write_report`) + `apiguard/report/template.html` (jinja2). Wired `--report` into the CLI `scan` command (stamps the generation time). The report is a thin library consumer (invariant 1) — it takes a `ScanResult` and renders it; no logic in the CLI.
+- `doppel/report/generator.py` (`render_report` / `write_report`) + `doppel/report/template.html` (jinja2). Wired `--report` into the CLI `scan` command (stamps the generation time). The report is a thin library consumer (invariant 1) — it takes a `ScanResult` and renders it; no logic in the CLI.
 - Design constraints that drove the choices: (1) **self-contained** — inline CSS only, no external fonts/scripts, so it opens offline for the wifi-off demo and is emailable as one file. (2) **autoescaping ON** — findings embed real response bodies that can contain attacker markup, so the report must render them inert or it is itself an XSS vector. A test asserts a `<script>` body escapes to `&lt;script&gt;`. (3) **the AI trace is the centrepiece** — for every AI-adjudicated finding it shows model/seed/temp, the 5 confidence signals as bars, and the oracle's prompt + raw schema-validated response in a collapsible. Confidence renders as a bar labelled "computed from signals" (invariant 5 messaging).
 
 **Verified**

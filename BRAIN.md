@@ -1,6 +1,6 @@
-# BRAIN.md — APIGuard Project Memory
+# BRAIN.md — Doppel Project Memory
 
-> This file is the single source of truth for the APIGuard project.
+> This file is the single source of truth for the Doppel project.
 > It is loaded at the start of every Claude Code session.
 > Read Section 0 before doing anything else.
 
@@ -29,11 +29,11 @@
 
 ## 1. What this project is
 
-**APIGuard** — an AI-powered API vulnerability scanner.
+**Doppel** — an AI-powered API authorization scanner.
 
 **One-liner:** Parse an OpenAPI spec, attack every endpoint, and use a locally-hosted LLM to (a) generate context-aware payloads and (b) adjudicate whether a cross-user access actually leaked data — detecting BOLA/IDOR flaws that return a normal 200 OK and are therefore invisible to status-code-based scanners.
 
-**Context:** 3rd-semester academic mini project. 5 weeks, 30 working days. Author: Mayurdhvajsinh.
+**Context:** 3rd-semester academic mini project. 5 weeks, 30 working days. **Authors: Mayurdhvajsinh and Aachal** — a joint, two-person submission (see the Team section below).
 
 **What success looks like at the end:** not a demo, a *result*. A table like this:
 
@@ -53,9 +53,37 @@ If we reach week 5 with a working tool but no filled-in table, the project has f
 
 ---
 
+## 1A. Team
+
+> Placed right after Section 1 and left **unnumbered relative to the rest** on purpose:
+> Sections 2–11 keep their existing numbers so every "See Section N" cross-reference in
+> this file still resolves.
+
+Doppel is a **two-person project — a joint submission, not a solo project.** Members:
+
+- **Mayurdhvajsinh**
+- **Aachal**
+
+**Role split — TBD (fill in next session).** The rows below are a starting suggestion, not decided; revise freely.
+
+| Area | Owner | Notes |
+|---|---|---|
+| BOLA engine / AI oracle | TBD | TBD |
+| Benchmark & evaluation | TBD | TBD |
+| Scanners / CLI / dashboard | TBD | TBD |
+| Report, demo & presentation | TBD | TBD |
+| Git workflow & releases | TBD | TBD |
+
+**Whose session is this?** Any instruction in this file addressed to "me" or "I" applies
+to **whoever is running the current session** — either member. If it is not obvious from
+context which of us you are talking to, **ask at the start of the session** before doing
+work, and record the answer for that session.
+
+---
+
 ## 2. Hard invariants — never violate these
 
-1. **The engine is a library, not a script.** All logic lives in the `apiguard` package. `cli.py`, `dashboard.py`, and `benchmark/` are thin consumers that import it. No business logic in any entry point.
+1. **The engine is a library, not a script.** All logic lives in the `doppel` package. `cli.py`, `dashboard.py`, and `benchmark/` are thin consumers that import it. No business logic in any entry point.
 
 2. **Never parse LLM free text.** Every LLM call uses Ollama's `format` parameter with a Pydantic-generated JSON schema, and the response is validated with `Model.model_validate_json()`. On validation failure, retry up to 2 times, then give up and record it as an inconclusive result. Never regex an LLM response.
 
@@ -108,8 +136,8 @@ Never load two models.
 ## 4. Architecture and file ownership
 
 ```
-apiguard/
-├── apiguard/
+doppel/
+├── doppel/
 │   ├── cli.py                  Typer entry point. NO logic.
 │   ├── runner.py               scan orchestration (parse + identity + touch). CLI calls this.
 │   ├── settings.py             pydantic-settings config loader
@@ -264,16 +292,16 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 ### Week 1 — Foundation
 - [x] **D1** Repo, venv, deps, VAmPI in Docker, Ollama + model pulled. *Done when: `ollama run <model> "hi"` works and VAmPI's spec loads.* — **DONE 2026-09-12, verified.**
 - [x] **D2** `core/models.py`. *Done when: a `Finding` can be built in a REPL and serialized.* — **DONE 2026-09-12, verified (6 tests pass).**
-- [x] **D3** `core/spec_parser.py` incl. `$ref` resolution. *Done when: `apiguard parse <url>` tables every endpoint + params.* — **DONE 2026-09-12, verified (tables 14 VAmPI ops; 12 tests pass).**
+- [x] **D3** `core/spec_parser.py` incl. `$ref` resolution. *Done when: `doppel parse <url>` tables every endpoint + params.* — **DONE 2026-09-12, verified (tables 14 VAmPI ops; 12 tests pass).**
 - [x] **D4** `core/http_engine.py`. *Done when: every VAmPI endpoint can be hit and returns a status.* — **DONE 2026-09-12, verified (all 14 VAmPI ops hit; 20 tests pass).**
 - [x] **D5** `core/identity.py`, two users. *Done when: both users hold valid tokens and can call an authed endpoint.* — **DONE 2026-09-12, verified (userA+userB each GET /me -> 200; 27 tests pass).**
-- [x] **D6** `cli.py` + rich progress. *Done when: `apiguard scan --dry-run` parses, logs in both users, touches every endpoint.* — **DONE 2026-09-12, verified (touches all 14 VAmPI ops; 34 tests pass). WEEK 1 COMPLETE.**
+- [x] **D6** `cli.py` + rich progress. *Done when: `doppel scan --dry-run` parses, logs in both users, touches every endpoint.* — **DONE 2026-09-12, verified (touches all 14 VAmPI ops; 34 tests pass). WEEK 1 COMPLETE.**
 
 ### Week 2 — Baseline scanners (compressed on purpose, do not gold-plate)
 - [x] **D7** `scanners/base.py` ABC + registry. *Done when: a dummy scanner is auto-discovered.* — **DONE 2026-09-12, verified (file-drop discovery; 39 tests pass).**
 - [x] **D8** `scanners/injection.py` (SQLi + XSS). *Done when: finds VAmPI's known SQLi.* — **DONE 2026-09-12, verified (finds SQLi in GET /users/v1/{username}, 1 finding, 0 FP; 44 tests pass).**
 - [x] **D9** `scanners/ssrf.py` + `scanners/jwt_attacks.py`. *Done when: JWT module flags a real weakness.* — **DONE 2026-09-12, verified (JWT flags weak secret 'random' on VAmPI, CRITICAL; 52 tests pass).**
-- [x] **D10** `scanners/misconfig.py` + `scanners/rate_limit.py`. *Done when: full baseline scan produces a findings list.* — **DONE 2026-09-12, verified (`apiguard scan` -> 5 findings on VAmPI; 60 tests pass).**
+- [x] **D10** `scanners/misconfig.py` + `scanners/rate_limit.py`. *Done when: full baseline scan produces a findings list.* — **DONE 2026-09-12, verified (`doppel scan` -> 5 findings on VAmPI; 60 tests pass).**
 - [x] **D11** Dedup, severity, OWASP mapping, evidence capture. *Done when: no dupes, every finding has a curl repro.* — **DONE 2026-09-12, verified (scan: 5 findings, 0 dupes, all curl+OWASP; 67 tests pass).**
 - [x] **D12** pytest + respx, first cassettes. *Done when: pytest green, `benchmark/results/baseline.json` saved.* — **DONE 2026-09-12, verified (69 tests; baseline.json saved; offline replay reproduces 5 findings with VAmPI stopped). WEEK 2 COMPLETE.**
 
@@ -296,7 +324,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 ### Week 5 — Proof, polish, presentation
 - [x] **D25** `benchmark/ground_truth.yaml` + `run_eval.py`. *Done when: one command prints precision/recall/F1.* — **DONE 2026-09-13, verified (`python benchmark/run_eval.py` prints a rich P/R/F1 table over all arm JSONs. VAmPI baseline/static/ai/ai_repair: prec 1.00 recall 0.42 (5/12); FULL: prec 1.00 recall 0.67 (8/12) — the BOLA/BFLA engine is the +0.25 recall lift at 0 FP. crapi: prec 1.00 recall 0.20 (1/5, single-endpoint validation). 122 tests pass. Ground truth = 12 VAmPI + 5 crAPI vulns, every entry live-verified).**
 - [x] **D26** Full ablation run, 4 arms + ZAP baseline. *Done when: the Section 1 table is filled in with real numbers.* — **DONE 2026-09-14, verified (Section 1 table filled: re-measured static/ai/ai+repair/full on VAmPI with fresh request counts; ran OWASP ZAP (docker, spec-driven api-scan) and adapted its real report via `benchmark/zap_adapt.py`. Full 8/12 recall @1.00 prec vs ZAP 2/12 @0.50 vs static 5/12 @1.00. 126 tests pass).**
-- [x] **D27** HTML report generator incl. AI trace. *Done when: `--report out.html` produces something presentable.* — **DONE 2026-09-14, verified (`apiguard/report/generator.py` + `template.html`; `scan --report out.html` wired; self-contained HTML, inline CSS, opens offline; surfaces the AI oracle trace (model/seed/temp + signal bars + prompt/raw response) for BOLA findings; autoescaping tested (untrusted response bodies render inert). Visually verified in-browser on the 8-finding Full scan. 131 tests pass).**
+- [x] **D27** HTML report generator incl. AI trace. *Done when: `--report out.html` produces something presentable.* — **DONE 2026-09-14, verified (`doppel/report/generator.py` + `template.html`; `scan --report out.html` wired; self-contained HTML, inline CSS, opens offline; surfaces the AI oracle trace (model/seed/temp + signal bars + prompt/raw response) for BOLA findings; autoescaping tested (untrusted response bodies render inert). Visually verified in-browser on the 8-finding Full scan. 131 tests pass).**
 - [x] **D28** Streamlit dashboard, cassette-backed. *Done when: full demo runs with wifi off.* — **DONE 2026-09-14, verified (`dashboard.py`: offline-by-construction — reads only committed `benchmark/results/*.json` + ground truth, Streamlit serves local assets, telemetry off. Tabs: Ablation (the table + recall chart), Findings explorer, BOLA deep-dive (oracle verdict + signal bars), Report (inline + download), About. Launched + viewed in-browser: full story renders with no live target/Ollama/network. 136 tests pass).**
 - [x] **D29** README, docstrings, cleanup, tag v1.0. *Done when: a stranger could clone and run it.* — **DONE 2026-09-14, verified (full README rewrite with venv-aware commands + the PATH gotcha; v1.0-cleanup audit (4-agent workflow) fixed: dropped undeclared pandas from dashboard, docstrings on all public classes/functions, refreshed stale Day-N module docstrings, removed an unused import; re-recorded the cassette so `scan --replay` reproduces the static scan offline (verified with VAmPI stopped); `pip install -e ".[dev]"` clean, 136 tests pass, version bumped to 1.0.0, tagged v1.0).**
 - [x] **D30** Demo recording + report writeup. *Done when: video recorded, report drafted.* — **DONE 2026-09-14. Report drafted: `docs/report.md` (full academic writeup, adversarially fact-checked against the repo — no blockers, minor precision fixes applied) + published as an HTML artifact ("The 200-OK Blind Spot"). Demo: `docs/demo_script.md` — shot-by-shot recording walkthrough with LIVE + OFFLINE command paths (the VIDEO itself is the author's to record from this script). Removed the stale `baseline.json` twin so `run_eval` reproduces the report table exactly. 136 tests pass. PROJECT COMPLETE (30/30).**
@@ -311,7 +339,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 
 **Current day:** Day 30 — complete. **★ PROJECT COMPLETE (30/30). ★** Tagged v1.0.
 **Last session:** 2026-09-14 — Day 30 report writeup + demo script.
-**Completed:** D1–D30 — the full 30-day roadmap. The three untouchable deliverables all shipped and MEASURED: the **BOLA engine**, the **AI response oracle**, the **benchmark harness**. Final result (VAmPI): APIGuard Full **8/12 (0.67) recall @ 1.00 precision** vs OWASP ZAP **2/12 (0.17)** — the entire gain is 200-OK authorization/data-exposure flaws. Second target (crAPI): a real BOLA at conf 0.8547, 0 FP. 136 tests. D30 shipped `docs/report.md` (adversarially fact-checked) + a published HTML report artifact + `docs/demo_script.md` (the recording walkthrough; the video is the author's to record).
+**Completed:** D1–D30 — the full 30-day roadmap. The three untouchable deliverables all shipped and MEASURED: the **BOLA engine**, the **AI response oracle**, the **benchmark harness**. Final result (VAmPI): Doppel Full **8/12 (0.67) recall @ 1.00 precision** vs OWASP ZAP **2/12 (0.17)** — the entire gain is 200-OK authorization/data-exposure flaws. Second target (crAPI): a real BOLA at conf 0.8547, 0 FP. 136 tests. D30 shipped `docs/report.md` (adversarially fact-checked) + a published HTML report artifact + `docs/demo_script.md` (the recording walkthrough; the video is the author's to record).
 **In progress:** nothing.
 **Blocked / broken:** nothing.
 **Next action:** none — project complete. If continuing beyond v1.0, the honest open items (all documented as limitations): (1) record the actual demo video from `docs/demo_script.md`; (2) generalize crAPI object discovery to the email-gated model to lift crАPI beyond one endpoint; (3) add write-side authorization testing (the engine adjudicates cross-user READS only); (4) a target with validation-gated params to show an AI-payload RECALL (not just efficiency) win.
@@ -321,7 +349,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - **FULL: prec 1.00, recall 0.67 (8/12)**, req 82 — the BOLA/BFLA engine adds book-secret BOLA + public-user BOLA + `_debug` BFLA. The +0.25 recall at 0 FP is the thesis, measured.
 - **ZAP: prec 0.50, recall 0.17 (2/12)** — finds only missing-headers + version-disclosure; MISSES all BOLA/BFLA/jwt/rate-limit AND the SQLi (its active SQLi scanner never fired on the injectable param; it only passively saw SQL in `/createdb`'s 500). It retrieved the `_debug` password dump and cross-user data and flagged nothing. 2 FP = noise alerts (bare 500 code, unexpected content-type); 2 real-but-out-of-scope alerts (SQL/error disclosure on /createdb) are reported, NOT counted as FP (they're real).
 - crapi: prec 1.00, recall 0.20 (1/5) — single-endpoint BOLA validation (D24), not a full scan.
-- HEADLINE: APIGuard Full nearly QUADRUPLES ZAP's recall (0.67 vs 0.17) at perfect precision. ZAP JSON has no request count -> shown n/a. ZAP command: `docker run --add-host=host.docker.internal:host-gateway -v zapwrk:/zap/wrk ghcr.io/zaproxy/zaproxy:stable zap-api-scan.py -t /zap/wrk/openapi_fixed.json -f openapi -J zap_report.json` (VAmPI's spec has `servers:[{url:""}]` so ZAP appends paths to the spec URL and 404s — MUST feed a local spec with servers set to the real base, and the /zap/wrk volume must be world-writable). Raw report: `benchmark/zap_report.json`.
+- HEADLINE: Doppel Full nearly QUADRUPLES ZAP's recall (0.67 vs 0.17) at perfect precision. ZAP JSON has no request count -> shown n/a. ZAP command: `docker run --add-host=host.docker.internal:host-gateway -v zapwrk:/zap/wrk ghcr.io/zaproxy/zaproxy:stable zap-api-scan.py -t /zap/wrk/openapi_fixed.json -f openapi -J zap_report.json` (VAmPI's spec has `servers:[{url:""}]` so ZAP appends paths to the spec URL and 404s — MUST feed a local spec with servers set to the real base, and the /zap/wrk volume must be world-writable). Raw report: `benchmark/zap_report.json`.
 - Matcher facts (viva): global findings (jwt, rate_limit) join on `scanner` ALONE; the 2 misconfig globals share path "/" so join by `id_contains`; `owasp_id` is NOT a match predicate (SQLi is API8 in-tool). `Finding.scanner` is the bare literal (`jwt`, not `jwt_attacks`).
 
 **Full scan (VAmPI, verified D23):** 8 findings — CRITICAL jwt weak-secret + CRITICAL bfla _debug; HIGH bola book + HIGH injection sqli; MEDIUM bola users(public); 3x LOW misconfig/rate_limit. This is the "Full" arm for the Week-5 ablation table.
@@ -331,7 +359,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - Auth: login `POST /identity/api/auth/login` `{email,password}` -> `{token: <RS256 JWT>}` (VAmPI is HS256 — different alg, proves generality). Signup `POST /identity/api/auth/signup` needs `{name,email,number,password}`. Our `AuthFlow` covers crAPI with **config only, zero engine code change** (register/login paths, `username_field="email"`, `token_json_key="token"`).
 - Seeded owners (bcrypt, passwords unknown): adam007/pogba006/robot001/test/admin @example.com, each owns ONE vehicle (uuid). To get sessions WITHOUT guessing: crAPI routes ALL mail to MailHog, so drive its real forgot-password -> OTP -> `POST /identity/api/auth/v3/check-otp` reset (OTP read from MailHog `/api/v1/messages/{id}/download`, HTML part). `benchmark/crapi_bola.py` automates this (idempotent). No DB tampering; note the OTP column read is blocked by the auto-mode classifier anyway (that's fine, MailHog is the right channel).
 - THE BOLA: `GET /identity/api/v2/vehicle/{vehicleId}/location` has NO ownership check — any logged-in user (even a fresh signup owning nothing) reads ANY vehicle's `{carId, latitude, longitude, fullName, email}` by uuid. Body ECHOES `carId` (so id_echo=1.0 here; the opaque-id-not-echoed case is covered by the D22 gate fix + `test_opaque_id_bola_is_caught_by_fixed_gate`). Discover a user's own uuid via `GET /identity/api/v2/vehicle/vehicles`.
-- WHY a driver, not `apiguard scan`: the generic `ResourceDiscoverer` seeds by POST + harvest; crAPI vehicles are pre-seeded & email-claim-gated, so the discoverer can't auto-seed one. `crapi_bola.py` supplies the two owner->uuid bindings from crAPI's own API, then the REAL `probe_cross_access`+oracle+confidence+`bola_finding` run UNMODIFIED. This is the honest split: discovery is target-specific, the CONTRIBUTION is not. Result saved `benchmark/results/crapi.json`.
+- WHY a driver, not `doppel scan`: the generic `ResourceDiscoverer` seeds by POST + harvest; crAPI vehicles are pre-seeded & email-claim-gated, so the discoverer can't auto-seed one. `crapi_bola.py` supplies the two owner->uuid bindings from crAPI's own API, then the REAL `probe_cross_access`+oracle+confidence+`bola_finding` run UNMODIFIED. This is the honest split: discovery is target-specific, the CONTRIBUTION is not. Result saved `benchmark/results/crapi.json`.
 
 **BOLA engine facts (VAmPI, verified D22):**
 - `scan --bola` -> 2 findings: HIGH `GET /books/v1/{book_title}` (B reads A's book secret) conf 0.81; MEDIUM `GET /users/v1/{username}` public conf 0.81. Each scored from 5 signals. `AITrace.signals` holds the 5 signals (the explainability trace for D27).
@@ -363,7 +391,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - qwen3:8b with `format`=schema is fast (~0.7s/call) and reliable: 20/20 first-try valid in the smoke. Seed bumps by attempt on retry.
 
 **Cassette facts:**
-- `cassettes/vampi/cassette.json` (~120 interactions, meta.spec_source) replays the whole VAmPI scan offline: `apiguard scan --replay cassettes/vampi` (no --spec, no live target). Re-record with `--record cassettes/vampi` after behavior changes.
+- `cassettes/vampi/cassette.json` (~120 interactions, meta.spec_source) replays the whole VAmPI scan offline: `doppel scan --replay cassettes/vampi` (no --spec, no live target). Re-record with `--record cassettes/vampi` after behavior changes.
 - Replay is deterministic ONLY because scanners avoid wall-clock in request content (fixed the JWT expired-token to derive from the token's own iat). Any new time/random in a request path will break replay — keep requests reproducible.
 
 **VAmPI JWT facts (Week-4 / report):**
@@ -373,7 +401,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - `GET /books/v1` returns 500 ONLY when the DB is uninitialized; after `/createdb` it returns **200 and serves the book list unauthenticated despite its spec requiring `bearerAuth`** — an auth-not-enforced / BFLA signal for Week 4, not a generic 500.
 - No security headers; `Server: Werkzeug/2.2.3 Python/3.11.15` disclosed; no CORS headers; no rate limiting. These are the LOW findings the misconfig/rate_limit scanners report.
 
-**Scanner contract (D7):** subclass `Scanner`, set `name` (and `owasp_id`), implement `async def run(self, endpoint) -> list[Finding]`. Construction takes a `ScanContext`. Access the engine via `self.engine` / `self.base_url`. Just adding a file under `apiguard/scanners/` registers it (no CLI edit).
+**Scanner contract (D7):** subclass `Scanner`, set `name` (and `owasp_id`), implement `async def run(self, endpoint) -> list[Finding]`. Construction takes a `ScanContext`. Access the engine via `self.engine` / `self.base_url`. Just adding a file under `doppel/scanners/` registers it (no CLI edit).
 
 **VAmPI auth facts (for Week-4 BOLA):**
 - Register: `POST /users/v1/register` JSON `{username,password,email}`. Login: `POST /users/v1/login` JSON `{username,password}` -> `{auth_token: <JWT>, ...}`. Auth header: `Authorization: Bearer <JWT>` (raw token is rejected by the OpenAPI layer).
@@ -387,7 +415,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - `settings.py` not built yet: scope allowlist is the hardcoded localhost default; non-localhost scanning not yet possible (safe for VAmPI). Wire a configurable allowlist into `load_spec`/engine when settings lands.
 - `load_spec` still uses its own one-shot `AsyncClient` (bootstrap). Fine, but could route through the shared engine later.
 - Cassette record/replay deferred to D12; auth/session is D5.
-- `apiguard` console script live; only `parse` exists. `scan` arrives D6.
+- `doppel` console script live; only `parse` exists. `scan` arrives D6.
 
 **Environment facts discovered:**
 - GPU / VRAM: NVIDIA RTX 4070, 12 GB (~10.8 GB free). Ollama runs on CUDA (compute 8.9). Integrated Intel UHD 770 is ignored by Ollama.
@@ -416,7 +444,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — All models set `extra="forbid"` and `Finding.confidence` is bounded `[0,1]` — a mistyped field is a loud error, and a computed confidence cannot silently leave range.
 - 2026-09-12 — **Internal `$ref` resolver instead of a library resolver (D3, user-approved deviation from the plan line)** — probing showed `openapi-spec-validator` only validates and `jsonschema-path` returns lazy nested objects needing recursive materialization; a ~15-line internal JSON-Pointer resolver over the plain dict is simpler, fully testable, and sufficient because OpenAPI refs are internal `#/...` pointers. We still validate with `openapi-spec-validator` first. VAmPI has zero refs; this is for crAPI.
 - 2026-09-12 — `core/scope.py` built on D3, ahead of its (unnumbered) slot — the spec fetch is the tool's first outbound request, so invariant 7 must hold now; a real guard, not a stub. Semantics: host must be in the allowlist AND, if non-localhost, carry `--confirm-authorized` (the flag is an extra requirement, never an allowlist bypass).
-- 2026-09-12 — Minimal `cli.py` (`parse` only) on D3, user-approved — the done-condition names `apiguard parse <url>`; cli stays presentation-only, uses a root callback so subcommand style holds with one command, and expands with `scan` on D6.
+- 2026-09-12 — Minimal `cli.py` (`parse` only) on D3, user-approved — the done-condition names `doppel parse <url>`; cli stays presentation-only, uses a root callback so subcommand style holds with one command, and expands with `scan` on D6.
 - 2026-09-12 — `load_spec` is async (`httpx.AsyncClient`) and the CLI wraps it in `asyncio.run` — honors invariant 8 from the first request.
 - 2026-09-12 — HTTP engine retries transport/timeout errors only, never HTTP statuses (D4) — a 401/500 is a real answer the scanners must see, not a failure; retrying it would corrupt evidence and inflate request counts.
 - 2026-09-12 — `follow_redirects=False` on the engine — a security tool must see the raw 3xx status, not the followed destination.
@@ -425,7 +453,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-12 — Target auth flow captured in an `AuthFlow` config, not hardcoded (D5) — register/login paths, field names, token key and header format vary per target; VAmPI defaults now, crAPI becomes another `AuthFlow` in Week 4 without touching identity logic.
 - 2026-09-12 — `IdentityManager.authenticate` registers best-effort then logs in — register is idempotent-friendly (re-runs hit an existing user), login is the token source of truth.
 - 2026-09-12 — Added `HttpEngine.send(json_body=...)` after a real 415 in exploration — a raw JSON body without `Content-Type` is rejected by VAmPI; the helper serializes and sets the header so no JSON caller repeats the trap. `IdentityManager` gets the engine injected (one shared client, invariant 8).
-- 2026-09-12 — New module `apiguard/runner.py` (added to Section 4) holds scan orchestration — keeps `cli.py` logic-free (invariant 1); the CLI passes a progress callback so `rich` stays out of the runner. Week 2+ grows a real scan path here.
+- 2026-09-12 — New module `doppel/runner.py` (added to Section 4) holds scan orchestration — keeps `cli.py` logic-free (invariant 1); the CLI passes a progress callback so `rich` stays out of the runner. Week 2+ grows a real scan path here.
 - 2026-09-12 — `settings.py` is a minimal pydantic-settings loader with zero-config defaults incl. two disposable VAmPI users (user-approved) — `scan --dry-run` works with no config file; `config.yaml` (gitignored) overrides. Wires the scope allowlist from config, resolving the earlier localhost-only limitation. (Env-over-YAML precedence deferred.)
 - 2026-09-12 — Dry-run touches endpoints authenticated as User A and still sends real baseline requests (not a no-network mode) — proves identity is wired into the pipeline; run only against a disposable target (VAmPI). Runner stays target-agnostic (no `/createdb` coupling); reset is the caller's concern.
 - 2026-09-12 — Scanner auto-registration gates on a non-empty `name`, not on abstractness (D7) — `ABCMeta` sets `__abstractmethods__` after `__init_subclass__` runs, so it can't be checked there; abstract intermediates simply leave `name` unset and stay unregistered.
@@ -462,14 +490,14 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-13 — **SAFETY: injection probes GET only (D22)** — a tautology/boolean payload (`' OR 1=1--`) on a state-changing path param is destructive (`DELETE FROM users WHERE ... OR 1=1` wipes rows). VAmPI's SQLi is on a GET, still found. Testing write-endpoint SQLi safely needs error-only/OAST probes (out of scope for the compressed Week-2 scanner). This also lowered request counts (D17/D18 JSONs stale -> re-measure D26).
 - 2026-09-13 — BOLA phase RE-AUTHENTICATES right before running (D22) — earlier scanners can disturb target state; specifically VAmPI's `GET /createdb` is a DB-reset endpoint that the misconfig scanner probes, wiping the registered users and invalidating the scan's start-of-run sessions. Re-`identity.setup()` re-registers + re-logs-in for fresh sessions. General principle: the BOLA engine owns its own fresh identity/objects rather than trusting pre-scan state.
 - 2026-09-13 — BFLA is keyword-based privileged-endpoint detection + low-priv GET probe (D23) — deterministic (no oracle, runs without Ollama). Privileged = a path segment containing admin/_debug/debug/internal/manage/root/superuser/... Only GET is probed (never trigger a privileged write). Flag if the low-priv user gets 2xx-with-data; CRITICAL if the body leaks credential-like markers (password/secret/token/hash/...), else HIGH. Runs in the same engines phase as BOLA but reports separately (scanner=bfla, API5:2023). FP guard: a 403/401 (authz working) is NOT flagged.
-- 2026-09-13 — **crAPI validated as a second target via a thin driver, NOT `apiguard scan` (D24)** — the generic `ResourceDiscoverer` seeds owned objects by POST+harvest; crAPI vehicles are pre-seeded and bound through an email-gated VIN/pincode claim flow, so the discoverer can't auto-seed one. `benchmark/crapi_bola.py` supplies the two owner->vehicle uuid bindings from crAPI's OWN API (`GET /vehicle/vehicles`), then calls the REAL `probe_cross_access` + `BolaOracle` + confidence + `bola_finding` UNMODIFIED. Honest split for the viva: *discovery* is target-specific plumbing; the *contribution* (gate + oracle + signal-based confidence) generalises unchanged. Extracted `runner.bola_finding(triple, decision, weights)` so the VAmPI and crAPI paths build findings through identical code.
+- 2026-09-13 — **crAPI validated as a second target via a thin driver, NOT `doppel scan` (D24)** — the generic `ResourceDiscoverer` seeds owned objects by POST+harvest; crAPI vehicles are pre-seeded and bound through an email-gated VIN/pincode claim flow, so the discoverer can't auto-seed one. `benchmark/crapi_bola.py` supplies the two owner->vehicle uuid bindings from crAPI's OWN API (`GET /vehicle/vehicles`), then calls the REAL `probe_cross_access` + `BolaOracle` + confidence + `bola_finding` UNMODIFIED. Honest split for the viva: *discovery* is target-specific plumbing; the *contribution* (gate + oracle + signal-based confidence) generalises unchanged. Extracted `runner.bola_finding(triple, decision, weights)` so the VAmPI and crAPI paths build findings through identical code.
 - 2026-09-13 — crAPI owner sessions obtained via crAPI's OWN forgot-password/OTP flow, not credential guessing or DB writes (D24) — seeded demo passwords are bcrypt/unknown; crAPI mails all OTPs to MailHog, so the driver triggers `forget-password`, reads the OTP from MailHog, and resets via `v3/check-otp`. Reproducible, uses only real crAPI endpoints, tampers with nothing but the two disposable demo accounts' passwords (documented, acceptable on a throwaway target). Reading the OTP straight from Postgres is blocked by the auto-mode classifier — MailHog is the correct channel regardless.
 - 2026-09-13 — Result (D24, real, reproducible): 1 true BOLA on crAPI `GET /identity/api/v2/vehicle/{vehicleId}/location` (HIGH, conf 0.8547, signals id_echo=1/field_overlap=1/status_match=1/body_divergence=0.27/oracle_verdict=1), 0 false positives (legit self-access cleared by `gate:identical-to-control`, no LLM). Meets the D24 done-condition (>=1 BOLA, <=2 FP). Note `carId` IS echoed here so id_echo=1; the opaque-id case (id in URL only) is separately locked by `test_opaque_id_bola_is_caught_by_fixed_gate`. The "crAPI won't run" blocker did not occur (ample RAM).
 - 2026-09-13 — Ground truth is a match-block join, not string-equality, and `owasp_id` is deliberately NOT a match predicate (D25) — a finding joins a known vuln via any of {scanner, path, method, id_contains, path_contains}, ALL present predicates must hold. Global findings (jwt, rate_limit) are reported on an incidental endpoint so they join on `scanner` alone; the two misconfig globals share carried path "/" so they join by `id_contains` (fixed ids). owasp is excluded because the tool maps SQLi to API8 while a purist calls it injection — keying on owasp would spuriously un-match a real detection. `run_eval` warns if one finding matches >1 entry (matcher-overlap / TP double-count guard).
-- 2026-09-13 — `detectable` flag splits the recall denominator honestly (D25): `detectable:true` = APIGuard demonstrably emits it (has a match block); `detectable:false` = a real known vuln with NO detector (no match block, always a false negative). Listing the 4 VAmPI blind spots (mass-assignment, unauthorized-password-change, enumeration, RegexDOS) as detectable:false is what makes recall meaningful — the Full arm's 0.67 is "8 of 12 real vulns", not "8 of the 8 we can find". Every ground-truth entry was independently verified against the live target before commit (integrity: a fabricated yardstick would invalidate every downstream number).
-- 2026-09-13 — Ground-truth enumeration ran as a 5-agent workflow (D25): 4 parallel angles (VAmPI source-read, VAmPI live-probe, crAPI, APIGuard detector-surface) + a completeness critic grounded against the REAL run_eval matcher and saved result files. The critic caught the traps (scanner='jwt' not 'jwt_attacks'; jwt/rate_limit are global→scanner-only; misconfig globals→id_contains; the omitted MEDIUM `GET /users/v1/{username}` bola that would otherwise score as an FP; the `_debug`/rate-limit duplicate candidates; a phantom verbose-error entry APIGuard never emits on VAmPI). Agents PROPOSE, the author VERIFIES and owns the artifact.
-- 2026-09-13 — crapi.json is scored as a targeted single-endpoint BOLA validation, not a full scan (D25) — only the vehicle-location BOLA is `detectable:true`; crAPI's other documented vulns (order/mechanic BOLA, jwt, mass-assignment) are honest false negatives (recall 0.20) because no full `apiguard scan` has run against crAPI yet. crAPI precision is the meaningful number (1.00); a fuller crAPI arm is optional D26 work (needs the crAPI AuthFlow wired as a scannable target, not just the driver).
-- 2026-09-14 — ZAP is scored by the IDENTICAL harness via an adapter, not judged by hand (D26) — `benchmark/zap_adapt.py` converts ZAP's real JSON report into a `ScanResult` whose findings carry APIGuard's match keys (ZAP alert -> scanner class; concrete URL normalised to the spec template), so `run_eval` scores it with the same ground-truth matcher. The one interpretive layer (`_classify`) prints every alert's disposition for full auditability. Reproducible and defensible; nothing hand-counted.
+- 2026-09-13 — `detectable` flag splits the recall denominator honestly (D25): `detectable:true` = Doppel demonstrably emits it (has a match block); `detectable:false` = a real known vuln with NO detector (no match block, always a false negative). Listing the 4 VAmPI blind spots (mass-assignment, unauthorized-password-change, enumeration, RegexDOS) as detectable:false is what makes recall meaningful — the Full arm's 0.67 is "8 of 12 real vulns", not "8 of the 8 we can find". Every ground-truth entry was independently verified against the live target before commit (integrity: a fabricated yardstick would invalidate every downstream number).
+- 2026-09-13 — Ground-truth enumeration ran as a 5-agent workflow (D25): 4 parallel angles (VAmPI source-read, VAmPI live-probe, crAPI, Doppel detector-surface) + a completeness critic grounded against the REAL run_eval matcher and saved result files. The critic caught the traps (scanner='jwt' not 'jwt_attacks'; jwt/rate_limit are global→scanner-only; misconfig globals→id_contains; the omitted MEDIUM `GET /users/v1/{username}` bola that would otherwise score as an FP; the `_debug`/rate-limit duplicate candidates; a phantom verbose-error entry Doppel never emits on VAmPI). Agents PROPOSE, the author VERIFIES and owns the artifact.
+- 2026-09-13 — crapi.json is scored as a targeted single-endpoint BOLA validation, not a full scan (D25) — only the vehicle-location BOLA is `detectable:true`; crAPI's other documented vulns (order/mechanic BOLA, jwt, mass-assignment) are honest false negatives (recall 0.20) because no full `doppel scan` has run against crAPI yet. crAPI precision is the meaningful number (1.00); a fuller crAPI arm is optional D26 work (needs the crAPI AuthFlow wired as a scannable target, not just the driver).
+- 2026-09-14 — ZAP is scored by the IDENTICAL harness via an adapter, not judged by hand (D26) — `benchmark/zap_adapt.py` converts ZAP's real JSON report into a `ScanResult` whose findings carry Doppel's match keys (ZAP alert -> scanner class; concrete URL normalised to the spec template), so `run_eval` scores it with the same ground-truth matcher. The one interpretive layer (`_classify`) prints every alert's disposition for full auditability. Reproducible and defensible; nothing hand-counted.
 - 2026-09-14 — ZAP's real-but-out-of-tracked-scope alerts are NOT counted as false positives (D26) — a THIRD bucket ("__oos__") for genuine findings outside the 12 tracked vulns (VAmPI's SQL/stack-trace disclosure on /createdb's 500). Counting a real finding as an FP would misrepresent ZAP; counting it as a TP would need it in the denominator. So they are reported and excluded from scoring. Only genuine noise (a bare 500 status flagged as an alert; "unexpected content-type") counts as ZAP FP. This keeps the comparison fair to the external baseline.
 - 2026-09-14 — Ablation arms are a nested capability ladder (D26): static = static payloads; ai = ai payloads; ai+repair = +self-repair; full = ai+repair+BOLA/BFLA engine. Each adds exactly one capability so a recall delta attributes to that capability. The engine delta (ai+repair 0.42 -> full 0.67) is the crown jewel's measured contribution. Honest nuances recorded: on VAmPI ai==ai+repair in both recall AND requests (repair fired 0 extra requests — no 400s to repair), and ai beats static only on requests (63 vs 71), not recall (VAmPI's vulns are all statically findable). A recall gap between ai and static needs a target with validation-gated params (crAPI).
 - 2026-09-14 — ZAP gotchas that cost real time, recorded so D28 demo/re-runs don't repeat them: (1) `-J`/file output REQUIRES `/zap/wrk` mounted AND world-writable (named volume is root-owned -> `chmod 777` it via a busybox one-shot). (2) VAmPI's OpenAPI `servers:[{url:""}]` makes ZAP resolve every path against the SPEC URL (`/openapi.json/users/...` -> 404, empty scan); `-O` override did NOT fix it — the reliable fix is to feed a LOCAL spec file with `servers` rewritten to the real base (`http://host.docker.internal:5000`). (3) Git Bash mangles container paths -> prefix docker commands with `MSYS_NO_PATHCONV=1`. The ZAP image is kept locally (3.7GB) for reproducibility.
@@ -482,6 +510,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 - 2026-09-14 — v1.0 cleanup driven by a 4-agent audit workflow grounded against the LIVE tree (D29) — 3 parallel auditors (core/scanners, ai/engines/report, benchmark/tests/packaging) + a completeness/synthesis critic that re-ran the clone->install->run path in a fresh venv and confirmed no unresolved stranger-blocker. 16/19 items fixed, 2 false alarms (already-fixed pandas + README-stub, both stale vs the working tree), 1 stale test comment. Lesson re-confirmed: agents PROPOSE, the author fixes + verifies; the synthesis-against-current-state catch (not the audit's snapshot quotes) prevented re-opening resolved items.
 - 2026-09-14 — The report was adversarially fact-checked against the repo before publishing (D30) — an agent cross-checked every quantitative + method claim against run_eval output, the result JSONs, ground_truth, and the source. Verdict: no blockers, all headline numbers accurate. Applied its minor fixes: "authorization flaws" -> "authorization / data-exposure flaws" (the public `GET /users/v1/{username}` read is PII over-exposure, not broken-authz — an OWASP-literate examiner would catch the flat phrasing); softened "active scanner never fired" -> "produced no alert" (what we can actually observe); "~30 modules" -> "roughly two dozen"; added a §6 limitation that the offline cassette replay covers only the deterministic scanners (Ollama traffic isn't recorded). A report is the most fabrication-sensitive artifact of all — fact-check it against the code, never trust your own recollection of the numbers.
 - 2026-09-14 — Removed `benchmark/results/baseline.json` (D30) — it was the D12 static twin (identical findings, stale 120-request count) and made the report's cited `python benchmark/run_eval.py` print a contradictory 7th row. `static.json` (71 req) is its current replacement; the dashboard already excluded it. Now the cited command reproduces the report's table exactly.
+- 2026-09-14 — **Renamed the project APIGuard → Doppel, and restructured into a `Doppel/` subfolder.** WHY the rename: "Guard" implied a defensive shield, but this is an offensive scanner; and "APIGuard" collided with an existing API-gateway project, a Laravel package, and a trademarked beekeeping product. "Doppel" (from *doppelgänger*) describes what the tool actually does — it logs in as two users and checks whether the API can tell them apart. Official tagline everywhere: "Doppel — AI-powered API authorization scanner." WHAT changed: the whole repo (incl. `.git`, history and the `v1.0` tag) moved into `Mini-Project/Doppel/`; package `apiguard/` → `doppel/`; `APIGuard_Execution_Plan.md` → `Doppel_Execution_Plan.md`; all *identity* references (imports, package name, console script `doppel`, env prefix `DOPPEL_`, product name, CLI examples, UI text) renamed across code + docs. DELIBERATELY NOT renamed (integrity): runtime *data* values that are baked into the committed cassette and result JSONs — the seeded test usernames `apiguard_a`/`apiguard_b`, the BOLA seed prefix `apiguard-<owner>-<field>`, the email domain `@apiguard.test`, and the `apiguardXSS` marker — because renaming them would desync the code from `cassettes/vampi/` (breaking `scan --replay`, the offline demo) and from `benchmark/results/*.json`. Rebranding those test fixtures is a separate task that requires re-recording the cassette + re-running the benchmark (a team decision; see the open questions). Also newly recorded: this is now a two-person project (see the Team section) — Mayurdhvajsinh and Aachal.
 
 ---
 
@@ -509,9 +538,9 @@ source .venv/bin/activate
 docker run -d -p 5000:5000 erev0s/vampi
 
 # run
-apiguard parse http://localhost:5000/openapi.json
-apiguard scan --spec http://localhost:5000/openapi.json --payloads both --report out.html
-apiguard scan --replay cassettes/vampi/          # offline, for demos
+doppel parse http://localhost:5000/openapi.json
+doppel scan --spec http://localhost:5000/openapi.json --payloads both --report out.html
+doppel scan --replay cassettes/vampi/          # offline, for demos
 
 # eval
 python benchmark/run_eval.py

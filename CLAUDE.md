@@ -1,4 +1,4 @@
-# APIGuard
+# Doppel
 
 Project memory and full execution plan live in the file imported below.
 Read it fully at the start of every session and follow its Section 0 protocol.

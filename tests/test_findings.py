@@ -1,15 +1,15 @@
-"""Tests for apiguard.core.findings — dedup, OWASP, evidence validation (D11)."""
+"""Tests for doppel.core.findings — dedup, OWASP, evidence validation (D11)."""
 
 import pytest
 
-from apiguard.core.findings import (
+from doppel.core.findings import (
     OWASP_API_2023,
     dedupe,
     finalize,
     is_valid_owasp_id,
     owasp_name,
 )
-from apiguard.core.models import Endpoint, Evidence, Finding, Severity
+from doppel.core.models import Endpoint, Evidence, Finding, Severity
 
 
 def _finding(fid="f1", severity=Severity.LOW, confidence=0.5, owasp="API8:2023", curl="curl x") -> Finding:

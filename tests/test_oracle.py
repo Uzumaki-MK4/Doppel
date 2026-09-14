@@ -1,12 +1,12 @@
-"""Tests for apiguard.ai.oracle — the BOLA gate + response oracle (Day 21)."""
+"""Tests for doppel.ai.oracle — the BOLA gate + response oracle (Day 21)."""
 
 import asyncio
 import types
 
-from apiguard.ai.client import OllamaClient
-from apiguard.ai.oracle import BolaOracle, gate
-from apiguard.core.models import Endpoint, Evidence
-from apiguard.engines.bola import AccessTriple
+from doppel.ai.client import OllamaClient
+from doppel.ai.oracle import BolaOracle, gate
+from doppel.core.models import Endpoint, Evidence
+from doppel.engines.bola import AccessTriple
 
 A_BODY = '{"book_title": "bookA", "owner": "apiguard_a", "secret": "apiguard-userA-secret"}'
 B_OWN_BODY = '{"book_title": "bookB", "owner": "apiguard_b", "secret": "apiguard-userB-secret"}'

@@ -1,4 +1,4 @@
-# APIGuard — Demo Recording Script
+# Doppel — Demo Recording Script
 
 A ~5-minute screen recording. Every command is copy-paste ready. Two paths are
 marked: **[LIVE]** (needs VAmPI + Ollama up) and **[OFFLINE]** (works with wifi off,
@@ -9,7 +9,7 @@ OFFLINE path tells the same story from committed results.
 
 ```powershell
 # From the project root, in PowerShell:
-.\.venv\Scripts\Activate.ps1          # activate the venv (so apiguard/streamlit/pytest resolve)
+.\.venv\Scripts\Activate.ps1          # activate the venv (so doppel/streamlit/pytest resolve)
 docker start vampi                     # [LIVE only] start the target
 ollama serve                           # [LIVE only] in a separate window, if not already running
 Get-Process ollama, vampi -ErrorAction SilentlyContinue   # sanity check
@@ -25,13 +25,13 @@ terminal font for legibility. Reset VAmPI once so the demo is clean:
 
 > "The #1 API security risk is Broken Object Level Authorization — one user reading
 > another user's data. The catch: a successful attack returns a normal `200 OK`, so
-> scanners that look at status codes or error messages are blind to it. APIGuard uses
+> scanners that look at status codes or error messages are blind to it. Doppel uses
 > a local LLM as a semantic oracle to catch exactly these flaws — and I measured it."
 
 ## Scene 2 — It understands the API (≈20s)
 
 ```powershell
-apiguard parse http://localhost:5000/openapi.json
+doppel parse http://localhost:5000/openapi.json
 ```
 
 > "It parses the OpenAPI spec and enumerates every endpoint, parameter, and which
@@ -42,13 +42,13 @@ apiguard parse http://localhost:5000/openapi.json
 **[LIVE]** — the full pipeline, writing an HTML report:
 
 ```powershell
-apiguard scan --spec http://localhost:5000/openapi.json --payloads ai --repair --bola --report out.html
+doppel scan --spec http://localhost:5000/openapi.json --payloads ai --repair --bola --report out.html
 ```
 
 **[OFFLINE]** — same tool, replayed from a cassette with the target stopped:
 
 ```powershell
-apiguard scan --replay cassettes/vampi/
+doppel scan --replay cassettes/vampi/
 ```
 
 > "It logs in as two users, runs the baseline scanners, then the BOLA/BFLA engine.
@@ -111,5 +111,5 @@ OFFLINE path).
   and 6 need no network or Ollama at all, and Scene 4 uses the committed report in the
   dashboard's Report tab.
 - To pre-generate the report shown in Scene 4 without a live scan:
-  `python -c "from apiguard.core.models import ScanResult; from apiguard.report.generator import write_report; write_report(ScanResult.model_validate_json(open('benchmark/results/full.json').read()), 'out.html')"`
+  `python -c "from doppel.core.models import ScanResult; from doppel.report.generator import write_report; write_report(ScanResult.model_validate_json(open('benchmark/results/full.json').read()), 'out.html')"`
 - Keep the recording under ~5 minutes; Scenes 3–5 are the core, the rest is framing.

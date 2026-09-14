@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+{# Doppel HTML report (BRAIN.md D27). Self-contained: inline CSS only, no
+   external fonts/scripts, so it opens offline. Autoescaping is ON — response
+   bodies are untrusted and must render as inert text. #}
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Doppel report — {{ r.target }}</title>
+  <style>
+    :root {
+      --bg: #f5f6f8; --card: #ffffff; --ink: #1c2330; --muted: #647089;
+      --line: #e3e7ee; --accent: #3856d6;
+      --critical: #b0002e; --high: #d8382b; --medium: #e07a00; --low: #1d84c3; --info: #78849c;
+      color-scheme: light;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink);
+      font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 0 20px 64px; }
+    a { color: var(--accent); }
+    code, pre { font-family: "SF Mono", "Cascadia Code", Consolas, "Liberation Mono", monospace; }
+
+    header.top { background: linear-gradient(135deg, #1c2330, #2b3550); color: #fff; padding: 28px 0 24px; }
+    header.top .wrap { padding-bottom: 0; }
+    header.top h1 { margin: 0; font-size: 26px; letter-spacing: -.4px; }
+    header.top h1 .shield { opacity: .85; }
+    header.top .sub { color: #c7d0e4; margin-top: 4px; font-size: 14px; }
+
+    .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px 20px; margin-top: 18px; }
+    .meta div { font-size: 13px; }
+    .meta .k { color: #9aa6c2; text-transform: uppercase; letter-spacing: .05em; font-size: 11px; }
+    .meta .v { color: #fff; font-weight: 600; word-break: break-word; }
+
+    .summary { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 24px 0 8px; }
+    .summary .total { font-size: 18px; font-weight: 700; margin-right: 6px; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px;
+      font-size: 13px; font-weight: 600; color: #fff; }
+    .pill .n { background: rgba(255,255,255,.28); border-radius: 999px; padding: 0 7px; }
+    .pill.zero { opacity: .38; }
+    .sev-critical { background: var(--critical); } .sev-high { background: var(--high); }
+    .sev-medium { background: var(--medium); } .sev-low { background: var(--low); } .sev-info { background: var(--info); }
+
+    .finding { background: var(--card); border: 1px solid var(--line); border-left: 5px solid var(--info);
+      border-radius: 10px; padding: 16px 18px; margin: 14px 0; box-shadow: 0 1px 2px rgba(20,30,60,.04); }
+    .finding.critical { border-left-color: var(--critical); } .finding.high { border-left-color: var(--high); }
+    .finding.medium { border-left-color: var(--medium); } .finding.low { border-left-color: var(--low); }
+    .finding.info { border-left-color: var(--info); }
+    .finding h3 { margin: 0 0 8px; font-size: 16px; line-height: 1.35; }
+    .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .tag { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 6px; background: #eef1f7; color: #3d475e; }
+    .tag.sev { color: #fff; }
+    .tag.mono { font-family: inherit; background: #edf1fb; color: #2b3f9e; }
+    .endpoint { font-family: "SF Mono", Consolas, monospace; font-size: 13px; color: var(--muted);
+      background: #f6f8fb; border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; margin-bottom: 10px;
+      overflow-x: auto; white-space: nowrap; }
+    .endpoint .m { color: var(--accent); font-weight: 700; }
+    .finding p { margin: 6px 0; }
+    .label { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 700; }
+
+    .conf { margin: 10px 0; }
+    .bar { position: relative; height: 8px; background: #eaeef5; border-radius: 999px; overflow: hidden; }
+    .bar > span { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 999px; }
+    .conf .row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+
+    .ai { margin: 12px 0 4px; padding: 12px 14px; background: #f2f6ff; border: 1px solid #d7e2fb; border-radius: 8px; }
+    .ai .hd { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; margin-bottom: 8px; }
+    .ai .hd b { font-size: 13px; color: #21367f; }
+    .ai .hd span { font-size: 12px; color: #5b6ba0; }
+    .signals { display: grid; gap: 6px; margin: 8px 0; }
+    .signals .s { display: grid; grid-template-columns: 130px 1fr 42px; gap: 10px; align-items: center; font-size: 12px; }
+    .signals .s .name { color: #3d475e; }
+    .signals .s .bar > span { background: #4d6bd8; }
+    .signals .s .val { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+    details { margin-top: 8px; }
+    details > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--accent); user-select: none; }
+    details > summary::-webkit-details-marker { color: var(--accent); }
+    pre { background: #0f1524; color: #d6def0; padding: 12px 14px; border-radius: 8px; overflow-x: auto;
+      font-size: 12.5px; line-height: 1.5; max-height: 420px; }
+    .kv { margin: 8px 0; font-size: 13px; }
+    .kv .k { color: var(--muted); }
+    .empty { background: var(--card); border: 1px dashed var(--line); border-radius: 10px; padding: 32px; text-align: center; color: var(--muted); }
+    footer { margin-top: 30px; color: var(--muted); font-size: 12px; text-align: center; }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <h1><span class="shield">&#128737;</span> Doppel report</h1>
+      <div class="sub">AI-powered API vulnerability scan &mdash; {{ r.target }}</div>
+      <div class="meta">
+        <div><div class="k">Target</div><div class="v">{{ r.target }}</div></div>
+        <div><div class="k">Spec</div><div class="v">{{ r.spec_url }}</div></div>
+        <div><div class="k">Model / seed</div><div class="v">{{ r.model }} / {{ r.seed }}</div></div>
+        <div><div class="k">Payload mode</div><div class="v">{{ r.payload_mode }}</div></div>
+        <div><div class="k">Endpoints</div><div class="v">{{ n_endpoints }}</div></div>
+        <div><div class="k">Requests sent</div><div class="v">{{ r.requests_sent }}</div></div>
+        <div><div class="k">AI-adjudicated</div><div class="v">{{ n_ai }}</div></div>
+        <div><div class="k">Generated</div><div class="v">{{ generated_at or "&mdash;" }}</div></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="summary">
+      <span class="total">{{ n_findings }} finding{{ "" if n_findings == 1 else "s" }}</span>
+      {% for sev in severity_order %}
+      <span class="pill sev-{{ sev }}{{ ' zero' if severity_counts[sev] == 0 else '' }}">
+        {{ sev | capitalize }} <span class="n">{{ severity_counts[sev] }}</span>
+      </span>
+      {% endfor %}
+    </div>
+
+    {% if not r.findings %}
+    <div class="empty">No findings. Every probe returned a clean result for this target.</div>
+    {% endif %}
+
+    {% for f in r.findings %}
+    <section class="finding {{ f.severity.value }}">
+      <div class="badges">
+        <span class="tag sev sev-{{ f.severity.value }}">{{ f.severity.value | upper }}</span>
+        <span class="tag mono">{{ f.owasp_id }}</span>
+        <span class="tag">{{ f.scanner }}</span>
+      </div>
+      <h3>{{ f.title }}</h3>
+      <div class="endpoint"><span class="m">{{ f.endpoint.method }}</span> {{ f.endpoint.path }}</div>
+
+      <div class="conf">
+        <div class="row"><span>Confidence (computed from signals)</span><span>{{ "%.2f"|format(f.confidence) }}</span></div>
+        <div class="bar"><span style="width: {{ (f.confidence * 100)|round(1) }}%"></span></div>
+      </div>
+
+      <p><span class="label">What</span><br>{{ f.description }}</p>
+      <p><span class="label">Fix</span><br>{{ f.remediation }}</p>
+
+      {% if f.ai_trace %}
+      <div class="ai">
+        <div class="hd">
+          <b>&#129504; AI oracle trace</b>
+          <span>model {{ f.ai_trace.model }}</span>
+          <span>seed {{ f.ai_trace.seed }}</span>
+          <span>temp {{ "%.1f"|format(f.ai_trace.temperature) }}</span>
+        </div>
+        {% if f.ai_trace.signals %}
+        <div class="signals">
+          {% for name, value in f.ai_trace.signals.items() %}
+          <div class="s">
+            <span class="name">{{ name | replace('_', ' ') | capitalize }}</span>
+            <span class="bar"><span style="width: {{ (value * 100)|round(1) }}%"></span></span>
+            <span class="val">{{ "%.2f"|format(value) }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <details>
+          <summary>Oracle prompt &amp; raw response</summary>
+          <div class="kv"><span class="k">Prompt sent to the model:</span></div>
+          <pre>{{ f.ai_trace.prompt | truncate(6000, True) }}</pre>
+          <div class="kv"><span class="k">Raw model response (schema-validated):</span></div>
+          <pre>{{ f.ai_trace.raw_response | truncate(4000, True) }}</pre>
+        </details>
+      </div>
+      {% endif %}
+
+      <details>
+        <summary>Evidence &amp; reproduction</summary>
+        <div class="kv"><span class="k">Reproduce:</span></div>
+        <pre>{{ f.evidence.curl_repro }}</pre>
+        <div class="kv"><span class="k">Request:</span> {{ f.evidence.request_method }} {{ f.evidence.request_url }}</div>
+        {% if f.evidence.request_body %}
+        <pre>{{ f.evidence.request_body | truncate(2000, True) }}</pre>
+        {% endif %}
+        <div class="kv"><span class="k">Response:</span> HTTP {{ f.evidence.response_status }}</div>
+        <pre>{{ f.evidence.response_body | truncate(4000, True) }}</pre>
+      </details>
+    </section>
+    {% endfor %}
+
+    <footer>
+      Generated by Doppel &middot; model {{ r.model }}, seed {{ r.seed }} (reproducible) &middot;
+      confidence is computed from measurable signals, never asked of the model.
+    </footer>
+  </div>
+</body>
+</html>

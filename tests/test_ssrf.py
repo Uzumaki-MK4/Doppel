@@ -1,4 +1,4 @@
-"""Tests for apiguard.scanners.ssrf (Day 9)."""
+"""Tests for doppel.scanners.ssrf (Day 9)."""
 
 import asyncio
 from urllib.parse import unquote
@@ -6,10 +6,10 @@ from urllib.parse import unquote
 import respx
 from httpx import Response
 
-from apiguard.core.http_engine import HttpEngine
-from apiguard.core.models import Endpoint, Parameter
-from apiguard.scanners.base import ScanContext
-from apiguard.scanners.ssrf import SsrfScanner, _looks_like_url_param
+from doppel.core.http_engine import HttpEngine
+from doppel.core.models import Endpoint, Parameter
+from doppel.scanners.base import ScanContext
+from doppel.scanners.ssrf import SsrfScanner, _looks_like_url_param
 
 BASE = "http://localhost:5000"
 

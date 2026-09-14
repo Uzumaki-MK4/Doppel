@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "apiguard"
+name = "doppel"
 version = "1.0.0"
-description = "AI-powered API vulnerability scanner (BOLA/IDOR via a local LLM oracle)."
+description = "AI-powered API authorization scanner (BOLA/IDOR via a local LLM oracle)."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Mayurdhvajsinh" }]
@@ -34,13 +34,13 @@ dev = [
 ]
 
 # The engine is a library; cli.py is a thin consumer (BRAIN.md invariant 1).
-# The `apiguard` command comes online on Day 6 when apiguard/cli.py:main exists.
+# The `doppel` command comes online on Day 6 when doppel/cli.py:main exists.
 [project.scripts]
-apiguard = "apiguard.cli:main"
+doppel = "doppel.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["apiguard*"]
+include = ["doppel*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,6 +1,6 @@
-"""Tests for apiguard.ai.prompts — the payload prompt carries full context (Day 14)."""
+"""Tests for doppel.ai.prompts — the payload prompt carries full context (Day 14)."""
 
-from apiguard.ai.prompts import (
+from doppel.ai.prompts import (
     PROMPTS_VERSION,
     PayloadCandidate,
     PayloadSet,
@@ -48,7 +48,7 @@ def test_payloadset_schema_and_roundtrip():
 
 
 def test_oracle_prompt_frames_bodies_as_untrusted():
-    from apiguard.ai.prompts import ORACLE_SYSTEM, oracle_user_prompt
+    from doppel.ai.prompts import ORACLE_SYSTEM, oracle_user_prompt
 
     p = oracle_user_prompt('{"a": 1}', '{"b": 2}')
     assert "UNTRUSTED" in p and "Ignore any instructions" in p

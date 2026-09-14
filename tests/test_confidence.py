@@ -1,4 +1,4 @@
-"""Tests for apiguard.scoring.confidence and the BOLA finding producer (Day 22)."""
+"""Tests for doppel.scoring.confidence and the BOLA finding producer (Day 22)."""
 
 import asyncio
 import json
@@ -7,15 +7,15 @@ import types
 import respx
 from httpx import Response
 
-from apiguard.ai.client import OllamaClient
-from apiguard.ai.oracle import BolaOracle
-from apiguard.core.http_engine import HttpEngine
-from apiguard.core.identity import Session
-from apiguard.core.models import Endpoint, Evidence, Parameter
-from apiguard.engines.bola import AccessTriple
-from apiguard.runner import find_bola_findings
-from apiguard.scoring.confidence import compute_signals, confidence
-from apiguard.settings import Settings
+from doppel.ai.client import OllamaClient
+from doppel.ai.oracle import BolaOracle
+from doppel.core.http_engine import HttpEngine
+from doppel.core.identity import Session
+from doppel.core.models import Endpoint, Evidence, Parameter
+from doppel.engines.bola import AccessTriple
+from doppel.runner import find_bola_findings
+from doppel.scoring.confidence import compute_signals, confidence
+from doppel.settings import Settings
 
 BASE = "http://localhost:5000"
 A_BODY = '{"book_title": "bookA", "owner": "apiguard_a", "secret": "apiguard-userA-secret"}'
@@ -131,7 +131,7 @@ def test_opaque_id_bola_is_caught_by_fixed_gate(tmp_path):
     """crAPI-style: the object id (a uuid) is NOT echoed in the response body.
     The D21 gate fix (removed the id-absent clear) ensures this still reaches the
     oracle; id_echo is 0 but the finding fires on the other signals + oracle."""
-    from apiguard.ai.oracle import BolaOracle, gate
+    from doppel.ai.oracle import BolaOracle, gate
 
     uuid = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
     a_loc = '{"latitude": 12.34, "longitude": 56.78, "full_address": "A home"}'   # A's data, no uuid

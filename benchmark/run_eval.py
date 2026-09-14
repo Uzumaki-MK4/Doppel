@@ -18,7 +18,7 @@ Two things keep the numbers honest:
 
 * Ground truth is filtered to each arm's TARGET (a VAmPI scan is never charged
   for crAPI's vulns, and vice-versa) — routing is by `ScanResult.target`.
-* The ground truth lists vulns APIGuard CANNOT yet detect (mass assignment,
+* The ground truth lists vulns Doppel CANNOT yet detect (mass assignment,
   unauthorized password change, ...) as `detectable: false` with no matcher, so
   they always count as false negatives — recall is not silently inflated by
   pretending the tool's blind spots don't exist.
@@ -40,7 +40,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 from rich.console import Console
 from rich.table import Table
 
-from apiguard.core.models import Finding, ScanResult
+from doppel.core.models import Finding, ScanResult
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_GROUND_TRUTH = HERE / "ground_truth.yaml"
@@ -229,7 +229,7 @@ def _pct(x: float) -> str:
 
 def render(metrics: list[ArmMetrics], gt: GroundTruth, console: Console, details: bool) -> None:
     table = Table(
-        title="APIGuard ablation - precision / recall / F1 vs ground truth",
+        title="Doppel ablation - precision / recall / F1 vs ground truth",
         caption="precision=TP/(TP+FP)  recall=TP/(TP+FN)  Known=ground-truth vulns for that target",
     )
     table.add_column("Arm", style="bold", no_wrap=True)

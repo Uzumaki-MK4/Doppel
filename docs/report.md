@@ -1,4 +1,4 @@
-# APIGuard — Detecting 200-OK Authorization Flaws with a Local LLM Oracle
+# Doppel — Detecting 200-OK Authorization Flaws with a Local LLM Oracle
 
 **A semantic BOLA/IDOR scanner for REST APIs**
 Author: **Mayurdhvajsinh** · 3rd-semester mini-project · v1.0
@@ -10,7 +10,7 @@ Author: **Mayurdhvajsinh** · 3rd-semester mini-project · v1.0
 Broken Object Level Authorization (BOLA, a.k.a. IDOR) is the #1 risk in the OWASP
 API Security Top 10, and it is uniquely hard to detect automatically: a successful
 cross-user data leak returns a perfectly normal `200 OK`, so scanners that reason
-about HTTP status codes or error signatures are blind to it. **APIGuard** parses an
+about HTTP status codes or error signatures are blind to it. **Doppel** parses an
 OpenAPI specification, authenticates as two independent users, and — instead of
 guessing from the status code — uses a **locally-hosted LLM as a semantic oracle**
 to adjudicate whether one user's cross-access actually returned another user's data.
@@ -18,7 +18,7 @@ Crucially, the model is called **only on genuinely ambiguous cases** (determinis
 gates resolve the rest), its output is **schema-constrained** (never free-text
 parsed), and the reported **confidence is computed from measurable signals**, never
 asked of the model. On the VAmPI benchmark, against a hand-verified ground truth of
-12 known vulnerabilities, APIGuard's full pipeline achieves **0.67 recall at 1.00
+12 known vulnerabilities, Doppel's full pipeline achieves **0.67 recall at 1.00
 precision** — nearly **4× the recall of OWASP ZAP (0.17)** — with the entire gain
 coming from three authorization / data-exposure flaws that return `200 OK`. The same engine, run
 unmodified, confirms a real BOLA on the OWASP crAPI target.
@@ -75,7 +75,7 @@ response and whether it belongs to a different user — a judgment about meaning
 content judgment, but naively wiring an LLM into a scanner is indefensible: models
 hallucinate, their free-text output is unparseable, their stated "confidence" is a
 plausible token rather than a probability, and their responses are non-deterministic.
-APIGuard's design is largely a set of guardrails that make LLM use *defensible* (§3).
+Doppel's design is largely a set of guardrails that make LLM use *defensible* (§3).
 
 **Test targets.** [VAmPI](https://github.com/erev0s/VAmPI) (a deliberately
 Vulnerable API) is the primary benchmark; [OWASP crAPI](https://github.com/OWASP/crAPI)
@@ -96,7 +96,7 @@ OpenAPI spec ─► parse ─► two-user login ─► baseline scanners ─► 
 
 The system is built around nine invariants that make it defensible in a viva:
 
-- **The engine is a library.** All logic lives in the `apiguard` package; the CLI,
+- **The engine is a library.** All logic lives in the `doppel` package; the CLI,
   the dashboard, and the benchmark are thin consumers.
 - **Never parse LLM free text.** Every model call uses a Pydantic-generated JSON
   schema (Ollama's `format` parameter) and is validated with
@@ -205,10 +205,10 @@ hand-verified list of the target's real vulnerabilities. Each entry was confirme
 against the live target (e.g. the mass-assignment flaw by registering `admin:true`
 and observing `admin:true` on `/me`; the unauthorized password change by having one
 user reset another's password). Crucially, the ground truth **includes vulnerabilities
-APIGuard cannot detect** (mass assignment, unauthorized password change, user/password
+Doppel cannot detect** (mass assignment, unauthorized password change, user/password
 enumeration, RegexDOS) as honest false negatives — so recall is not inflated by
 pretending the tool's blind spots do not exist. VAmPI's ground truth is 12 vulns; 8
-are within APIGuard's detection classes and 4 are inherent false negatives.
+are within Doppel's detection classes and 4 are inherent false negatives.
 
 A single command, `python benchmark/run_eval.py`, joins each scan's findings to the
 ground truth — global findings (JWT, rate-limit) match on scanner alone; the two
@@ -219,7 +219,7 @@ scanner + endpoint — and computes, per arm:
 > **FN** = known vulns unmatched · **precision** = TP/(TP+FP) · **recall** =
 > TP/(TP+FN).
 
-The four APIGuard arms form a **nested capability ladder**, each adding one
+The four Doppel arms form a **nested capability ladder**, each adding one
 capability, so a recall delta attributes to that capability:
 
 1. **Static** — static wordlist payloads.
@@ -228,7 +228,7 @@ capability, so a recall delta attributes to that capability:
 4. **Full** — plus the BOLA/BFLA engine (the contribution).
 
 **OWASP ZAP** is the external baseline, run in Docker with its spec-driven API scan
-(the same OpenAPI spec APIGuard uses) and scored through the *identical* harness via
+(the same OpenAPI spec Doppel uses) and scored through the *identical* harness via
 an adapter that maps each ZAP alert to the ground-truth classes and prints every
 alert's disposition for audit.
 
@@ -244,7 +244,7 @@ alert's disposition for audit.
 
 ### 5.3 Discussion
 
-**The BOLA/BFLA engine is the entire recall gain.** All four APIGuard arms find the
+**The BOLA/BFLA engine is the entire recall gain.** All four Doppel arms find the
 same five statically-detectable vulns (weak JWT secret, SQLi, two misconfigurations,
 missing rate-limiting) at perfect precision. The Full arm adds exactly three findings
 — a book-secret BOLA, a public-user-record BOLA, and an `_debug` BFLA — lifting recall
@@ -259,7 +259,7 @@ rate-limiting. Most tellingly, ZAP
 *retrieved the `/users/v1/_debug` endpoint that dumps every user's password, and the
 cross-user data, and flagged nothing* — because it has no notion that those responses
 are unauthorized. Its two false positives are low-signal noise (a bare `500` flagged
-as an alert; an unexpected content-type). APIGuard's Full arm nearly **quadruples**
+as an alert; an unexpected content-type). Doppel's Full arm nearly **quadruples**
 ZAP's recall at double its precision.
 
 **The AI payload arm's honest story.** On VAmPI the AI arm reaches the *same* recall
@@ -307,9 +307,9 @@ untouched — an honest split between target-specific plumbing and the general e
 
 Every LLM call pins a seed; every saved result records its model and seed. The full
 **offline** story — `pytest` (respx-mocked), `python benchmark/run_eval.py`,
-`streamlit run dashboard.py`, and `apiguard scan --replay cassettes/vampi/` (verified
+`streamlit run dashboard.py`, and `doppel scan --replay cassettes/vampi/` (verified
 with VAmPI stopped) — runs with no network and no Ollama. The live path
-(`apiguard scan --bola`) needs VAmPI (`docker run -d -p 5000:5000 erev0s/vampi`) and
+(`doppel scan --bola`) needs VAmPI (`docker run -d -p 5000:5000 erev0s/vampi`) and
 Ollama with `qwen3:8b`. Install is `pip install -e ".[dev]"`; the tool, tests, and
 data are all in the repository at tag **v1.0**.
 
@@ -317,7 +317,7 @@ data are all in the repository at tag **v1.0**.
 
 ## 8. Conclusion and future work
 
-APIGuard demonstrates that a **locally-hosted LLM, used under strict guardrails**
+Doppel demonstrates that a **locally-hosted LLM, used under strict guardrails**
 (deterministic-first gating, schema-constrained output, computed-not-asked
 confidence), turns the hardest-to-automate API vulnerability class — the `200 OK`
 authorization leak — into a measurable, evidence-backed finding. On VAmPI it detects

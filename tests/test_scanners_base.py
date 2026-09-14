@@ -1,11 +1,11 @@
-"""Tests for apiguard.scanners.base — the ABC + registry (Day 7)."""
+"""Tests for doppel.scanners.base — the ABC + registry (Day 7)."""
 
 import asyncio
 
 import pytest
 
-from apiguard.core.models import Endpoint, Evidence, Finding, Severity
-from apiguard.scanners.base import (
+from doppel.core.models import Endpoint, Evidence, Finding, Severity
+from doppel.scanners.base import (
     ScanContext,
     Scanner,
     build_scanners,

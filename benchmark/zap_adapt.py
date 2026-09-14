@@ -1,8 +1,8 @@
 """benchmark/zap_adapt.py — turn an OWASP ZAP report into a scorable arm (BRAIN.md D26).
 
 ZAP is the EXTERNAL baseline in the Section-1 ablation. To judge it by the same
-yardstick as APIGuard, this adapter converts ZAP's real JSON report into a
-`ScanResult` (`benchmark/results/zap.json`) whose findings carry APIGuard's own
+yardstick as Doppel, this adapter converts ZAP's real JSON report into a
+`ScanResult` (`benchmark/results/zap.json`) whose findings carry Doppel's own
 match keys, so `run_eval.py` scores ZAP with the identical ground-truth matcher.
 
 The interpretive layer — the ONE place ZAP's world is mapped onto ours — is
@@ -11,11 +11,11 @@ printed with its disposition (which ground-truth class it was credited to, or
 "FP" for a Low+ alert that matches no real vuln, or "skip" for informational
 noise). Nothing is hidden; an examiner can re-derive every number.
 
-Fairness rules (the same standard applied to APIGuard):
+Fairness rules (the same standard applied to Doppel):
   * ZAP recall = how many of the target's ground-truth vulns ZAP detected.
   * ZAP false positives = Low-risk-or-above ZAP alerts that map to NO real vuln
     (the noise a user must triage). Informational (riskcode 0) alerts are excluded
-    entirely — APIGuard emits no info-level findings either, so counting ZAP's
+    entirely — Doppel emits no info-level findings either, so counting ZAP's
     would be unfair.
   * A ZAP alert instance's concrete URL (…/users/v1/name1) is normalised back to
     the spec's templated path (…/users/v1/{username}) so it can join by endpoint.
@@ -32,15 +32,15 @@ import re
 import sys
 from pathlib import Path
 
-from apiguard.core.models import Endpoint, Evidence, Finding, ScanResult, Severity
-from apiguard.core.spec_parser import load_spec, parse_spec
+from doppel.core.models import Endpoint, Evidence, Finding, ScanResult, Severity
+from doppel.core.spec_parser import load_spec, parse_spec
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_SPEC = "http://localhost:5000/openapi.json"
 DEFAULT_OUT = HERE / "results" / "zap.json"
 
 # --------------------------------------------------------------------------- #
-# The interpretive layer: ZAP alert -> APIGuard ground-truth class.
+# The interpretive layer: ZAP alert -> Doppel ground-truth class.
 #
 # Keyed on ZAP's stable numeric pluginid. Each maps to a (scanner, id_slug) that
 # lines up with a ground_truth.yaml `match` block:
@@ -72,7 +72,7 @@ _OUT_OF_SCOPE_PLUGINS = {
               #   scanner 40018 never fired, so ZAP does NOT detect the real SQLi)
     "90022",  # Application Error Disclosure (verbose 500 error page)
 }
-# Informational alerts APIGuard would never emit — exclude from scoring entirely.
+# Informational alerts Doppel would never emit — exclude from scoring entirely.
 _SKIP_PLUGINS = {
     "10096",  # Timestamp Disclosure
     "10027",  # Information Disclosure - Suspicious Comments

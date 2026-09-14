@@ -1,4 +1,4 @@
-"""Tests for apiguard.core.identity (Day 5). respx mocks the auth flow."""
+"""Tests for doppel.core.identity (Day 5). respx mocks the auth flow."""
 
 import asyncio
 
@@ -6,8 +6,8 @@ import pytest
 import respx
 from httpx import Response
 
-from apiguard.core.http_engine import HttpEngine
-from apiguard.core.identity import (
+from doppel.core.http_engine import HttpEngine
+from doppel.core.identity import (
     AuthFlow,
     IdentityError,
     IdentityManager,

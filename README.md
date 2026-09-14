@@ -1,8 +1,8 @@
-# 🛡️ APIGuard
+# 🛡️ Doppel
 
-**An AI-powered API vulnerability scanner that finds the flaws mature scanners miss.**
+**An AI-powered API authorization scanner that finds the flaws mature scanners miss.**
 
-APIGuard parses an OpenAPI spec, attacks every endpoint, and uses a **locally-hosted
+Doppel parses an OpenAPI spec, attacks every endpoint, and uses a **locally-hosted
 LLM** to (a) generate context-aware attack payloads and (b) adjudicate whether a
 cross-user access actually *leaked data* — detecting **BOLA / IDOR** flaws that
 return a normal `200 OK` and are therefore invisible to status-code-based scanners.
@@ -83,7 +83,7 @@ ollama pull qwen3:8b
 cp config.example.yaml config.yaml
 ```
 
-> **Windows / PATH note (important).** The `apiguard`, `pytest` and `streamlit`
+> **Windows / PATH note (important).** The `doppel`, `pytest` and `streamlit`
 > commands are installed **inside `.venv\Scripts`**, not on your global PATH. **Activate
 > the venv first** (step 1) and they work as written below. If PowerShell blocks
 > activation, run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` once, or
@@ -94,16 +94,16 @@ cp config.example.yaml config.yaml
 
 ```bash
 # List every endpoint + its parameters
-apiguard parse http://localhost:5000/openapi.json
+doppel parse http://localhost:5000/openapi.json
 
 # Full scan: AI payloads + self-repair + the BOLA/BFLA engine, write an HTML report
-apiguard scan --spec http://localhost:5000/openapi.json --payloads ai --repair --bola --report out.html
+doppel scan --spec http://localhost:5000/openapi.json --payloads ai --repair --bola --report out.html
 
 # Baseline scan (static payloads, no engine)
-apiguard scan --spec http://localhost:5000/openapi.json --payloads static --no-repair
+doppel scan --spec http://localhost:5000/openapi.json --payloads static --no-repair
 
 # Offline demo — replay a recorded scan with the target stopped
-apiguard scan --replay cassettes/vampi/
+doppel scan --replay cassettes/vampi/
 
 # Score every saved arm against the ground truth (the ablation table above)
 python benchmark/run_eval.py            # add --details for per-arm detected/missed lists
@@ -143,7 +143,7 @@ the *unmodified* engine — see `BRAIN.md` §8 for the crAPI setup notes.
 ## Project layout
 
 ```
-apiguard/            the engine (library)
+doppel/            the engine (library)
   core/              models, spec parser, http engine, identity, scope guard, findings
   scanners/          injection (SQLi/XSS), jwt, ssrf, misconfig, rate_limit  (auto-registered)
   ai/                Ollama client, prompts, payload generation, self-repair, the ORACLE

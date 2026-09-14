@@ -1,4 +1,4 @@
-"""Tests for apiguard.core.models (Day 2).
+"""Tests for doppel.core.models (Day 2).
 
 Proves the Day-2 done-condition: a Finding builds and serializes, plus the
 hardening we added (confidence bounds, extra=forbid, string severity) and the
@@ -8,7 +8,7 @@ ScanResult shape.
 import pytest
 from pydantic import ValidationError
 
-from apiguard.core.models import (
+from doppel.core.models import (
     AITrace,
     Endpoint,
     Evidence,

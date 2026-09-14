@@ -1,4 +1,4 @@
-"""Tests for apiguard.core.http_engine (Day 4). No live target — respx mocks."""
+"""Tests for doppel.core.http_engine (Day 4). No live target — respx mocks."""
 
 import asyncio
 import time
@@ -7,14 +7,14 @@ import httpx
 import respx
 from httpx import Response
 
-from apiguard.core.http_engine import (
+from doppel.core.http_engine import (
     HttpEngine,
     _example_from_schema,
     _RateLimiter,
     build_curl,
     build_request,
 )
-from apiguard.core.models import Endpoint, Parameter
+from doppel.core.models import Endpoint, Parameter
 
 
 def _endpoint(**kw) -> Endpoint:

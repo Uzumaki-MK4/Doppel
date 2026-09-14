@@ -1,4 +1,4 @@
-"""Tests for apiguard.runner (Day 6). respx mocks spec + auth + probes."""
+"""Tests for doppel.runner (Day 6). respx mocks spec + auth + probes."""
 
 import asyncio
 
@@ -6,8 +6,8 @@ import pytest
 import respx
 from httpx import Response
 
-from apiguard.runner import _base_url_of, dry_run, scan
-from apiguard.settings import Settings
+from doppel.runner import _base_url_of, dry_run, scan
+from doppel.settings import Settings
 
 BASE = "http://localhost:5000"
 
@@ -71,7 +71,7 @@ def test_dry_run_blocks_out_of_scope():
     async def run():
         return await dry_run("http://evil.example/openapi.json", Settings())
 
-    from apiguard.core.scope import ScopeError
+    from doppel.core.scope import ScopeError
 
     with pytest.raises(ScopeError):
         asyncio.run(run())

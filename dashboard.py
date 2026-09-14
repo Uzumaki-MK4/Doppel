@@ -1,4 +1,4 @@
-"""APIGuard Streamlit dashboard (BRAIN.md D28).
+"""Doppel Streamlit dashboard (BRAIN.md D28).
 
 A thin consumer of the engine (invariant 1): it presents the SAVED artifacts —
 the per-arm result JSONs, the ground truth, and the HTML report — so the whole
@@ -19,7 +19,7 @@ import json
 import sys
 from pathlib import Path
 
-from apiguard.core.models import ScanResult
+from doppel.core.models import ScanResult
 
 ROOT = Path(__file__).resolve().parent
 BENCH = ROOT / "benchmark"
@@ -98,16 +98,16 @@ def parse_oracle(raw_response: str) -> dict:
 def main() -> None:  # pragma: no cover - exercised by `streamlit run`, not pytest
     import streamlit as st
 
-    from apiguard.report.generator import render_report
+    from doppel.report.generator import render_report
 
-    st.set_page_config(page_title="APIGuard", page_icon="🛡️", layout="wide")
+    st.set_page_config(page_title="Doppel", page_icon="🛡️", layout="wide")
     run_eval = _load_run_eval()
     gt = run_eval.load_ground_truth()
     paths = arm_result_paths()
 
-    st.title("🛡️ APIGuard")
+    st.title("🛡️ Doppel")
     st.caption(
-        "AI-powered API vulnerability scanner — detecting BOLA/IDOR flaws that return a "
+        "AI-powered API authorization scanner — detecting BOLA/IDOR flaws that return a "
         "normal 200 OK and are invisible to status-code scanners."
     )
     st.info("Offline demo — every panel is read from committed result files "
@@ -117,13 +117,13 @@ def main() -> None:  # pragma: no cover - exercised by `streamlit run`, not pyte
     vampi = {r["_stem"]: r for r in rows if r["Target"] == "vampi"}
     c1, c2, c3 = st.columns(3)
     if "full" in vampi:
-        c1.metric("APIGuard Full — recall", f"{vampi['full']['Recall']:.2f}", help="8/12 VAmPI vulns, 0 FP")
+        c1.metric("Doppel Full — recall", f"{vampi['full']['Recall']:.2f}", help="8/12 VAmPI vulns, 0 FP")
     if "zap" in vampi:
         c2.metric("OWASP ZAP — recall", f"{vampi['zap']['Recall']:.2f}",
                   delta=f"{(vampi['zap']['Recall'] - vampi['full']['Recall']):+.2f} vs Full" if "full" in vampi else None,
-                  help="ZAP misses every authorization vuln APIGuard's engine catches")
+                  help="ZAP misses every authorization vuln Doppel's engine catches")
     if "full" in vampi:
-        c3.metric("APIGuard Full — precision", f"{vampi['full']['Precision']:.2f}")
+        c3.metric("Doppel Full — precision", f"{vampi['full']['Precision']:.2f}")
 
     tab_abl, tab_find, tab_bola, tab_report, tab_about = st.tabs(
         ["📊 Ablation", "🔍 Findings", "🧠 BOLA deep-dive", "📄 Report", "ℹ️ About"]
@@ -176,7 +176,7 @@ def main() -> None:  # pragma: no cover - exercised by `streamlit run`, not pyte
     with tab_bola:
         st.subheader("The crown jewel — semantic BOLA adjudication")
         st.caption("A cross-user access that returns 200 OK looks fine to a status scanner. "
-                   "APIGuard runs deterministic gates first, then an LLM oracle only on ambiguous "
+                   "Doppel runs deterministic gates first, then an LLM oracle only on ambiguous "
                    "cases, and computes confidence from measurable signals — never asked of the model.")
         full = next((load_result(p) for p in paths if p.stem == "full"), None)
         crapi = next((load_result(p) for p in paths if p.stem == "crapi"), None)
@@ -211,7 +211,7 @@ def main() -> None:  # pragma: no cover - exercised by `streamlit run`, not pyte
                             index=list(labels).index(ARM_LABEL["full"]) if ARM_LABEL["full"] in labels else 0,
                             key="report_arm")
         html = render_report(load_result(labels[pick]))
-        st.download_button("⬇️ Download HTML report", html, file_name=f"apiguard_{labels[pick].stem}.html",
+        st.download_button("⬇️ Download HTML report", html, file_name=f"doppel_{labels[pick].stem}.html",
                            mime="text/html")
         st.components.v1.html(html, height=680, scrolling=True)
 
@@ -219,7 +219,7 @@ def main() -> None:  # pragma: no cover - exercised by `streamlit run`, not pyte
     with tab_about:
         st.markdown(
             "### What this is\n"
-            "APIGuard parses an OpenAPI spec, attacks every endpoint, and uses a **locally-hosted "
+            "Doppel parses an OpenAPI spec, attacks every endpoint, and uses a **locally-hosted "
             "LLM** to (a) generate context-aware payloads and (b) adjudicate whether a cross-user "
             "access actually leaked data — catching **BOLA/IDOR** flaws that return 200 OK.\n\n"
             "### Why it's defensible\n"

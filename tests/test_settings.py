@@ -1,6 +1,6 @@
-"""Tests for apiguard.settings (Day 6)."""
+"""Tests for doppel.settings (Day 6)."""
 
-from apiguard.settings import Settings, load_settings
+from doppel.settings import Settings, load_settings
 
 
 def test_defaults_are_usable():

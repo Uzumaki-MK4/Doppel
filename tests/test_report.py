@@ -1,11 +1,11 @@
-"""Tests for apiguard.report.generator — the HTML report (Day 27).
+"""Tests for doppel.report.generator — the HTML report (Day 27).
 
 Pure rendering; no network. The security-critical assertion is autoescaping:
 a finding's response body is untrusted and must never render as live markup.
 """
 
-from apiguard.core.models import AITrace, Endpoint, Evidence, Finding, ScanResult, Severity
-from apiguard.report.generator import render_report, write_report
+from doppel.core.models import AITrace, Endpoint, Evidence, Finding, ScanResult, Severity
+from doppel.report.generator import render_report, write_report
 
 
 def _evidence(body: str) -> Evidence:
@@ -61,7 +61,7 @@ def _result(findings) -> ScanResult:
 def test_report_has_structure_and_findings():
     html = render_report(_result([_bola_finding(), _misconfig_finding()]), generated_at="2026-09-14T10:00:00")
     assert html.lstrip().startswith("<!DOCTYPE html>")
-    assert "APIGuard report" in html
+    assert "Doppel report" in html
     assert "http://localhost:5000" in html          # target
     assert "qwen3:8b" in html and "seed 42" in html  # reproducibility surfaced
     # both findings rendered

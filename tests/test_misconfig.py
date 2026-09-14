@@ -1,14 +1,14 @@
-"""Tests for apiguard.scanners.misconfig (Day 10)."""
+"""Tests for doppel.scanners.misconfig (Day 10)."""
 
 import asyncio
 
 import respx
 from httpx import Response
 
-from apiguard.core.http_engine import HttpEngine
-from apiguard.core.models import Endpoint
-from apiguard.scanners.base import ScanContext
-from apiguard.scanners.misconfig import MisconfigScanner
+from doppel.core.http_engine import HttpEngine
+from doppel.core.models import Endpoint
+from doppel.scanners.base import ScanContext
+from doppel.scanners.misconfig import MisconfigScanner
 
 BASE = "http://localhost:5000"
 _ALL_SEC_HEADERS = {

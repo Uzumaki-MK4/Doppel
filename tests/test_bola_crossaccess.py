@@ -6,10 +6,10 @@ import json
 import respx
 from httpx import Response
 
-from apiguard.core.http_engine import HttpEngine
-from apiguard.core.identity import Session
-from apiguard.core.models import Endpoint, Parameter
-from apiguard.engines.bola import collect_triples
+from doppel.core.http_engine import HttpEngine
+from doppel.core.identity import Session
+from doppel.core.models import Endpoint, Parameter
+from doppel.engines.bola import collect_triples
 
 BASE = "http://localhost:5000"
 

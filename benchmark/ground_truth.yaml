@@ -5,13 +5,13 @@
 # an entry to compute precision / recall / F1 per arm.
 #
 # Semantics of `detectable` / `match`:
-#   detectable: true  -> APIGuard HAS a detector that emits this, demonstrated in
+#   detectable: true  -> Doppel HAS a detector that emits this, demonstrated in
 #                        at least one committed result file. Carries a `match`
 #                        block (predicates that ALL must hold to join a finding).
 #                        A weaker arm that misses it (e.g. a baseline arm with no
 #                        BOLA engine) scores it as a real false negative — that gap
 #                        IS the ablation.
-#   detectable: false -> a genuine known vuln APIGuard cannot (yet) detect. No
+#   detectable: false -> a genuine known vuln Doppel cannot (yet) detect. No
 #                        `match` block; it is always a false negative. Listing it
 #                        keeps the recall denominator honest (never inflate recall
 #                        by pretending the tool's blind spots do not exist).
@@ -39,7 +39,7 @@ vulns:
   - id: vampi-sqli-username
     target: vampi
     title: "SQL injection in the username path param of GET /users/v1/{username}"
-    owasp_id: API8:2023          # 2023 folds Injection into API8 (matches APIGuard's mapping)
+    owasp_id: API8:2023          # 2023 folds Injection into API8 (matches Doppel's mapping)
     vuln_class: injection
     detectable: true
     match: { scanner: injection, path: "/users/v1/{username}", id_contains: sqli }
@@ -68,20 +68,20 @@ vulns:
     detectable: true
     match: { scanner: bola, path: "/users/v1/{username}" }
     note: >-
-      Public object read (spec security=[]); APIGuard emits it as a MEDIUM bola
+      Public object read (spec security=[]); Doppel emits it as a MEDIUM bola
       (down-weighted, not suppressed). Must be listed, else the Full arm's real
       finding would score as a false positive.
 
   - id: vampi-bfla-debug-dump
     target: vampi
     title: "BFLA / excessive exposure: GET /users/v1/_debug dumps every user's password, unauthenticated"
-    owasp_id: API5:2023          # VAmPI docs call it API3 excessive-data; APIGuard emits it as BFLA/API5
+    owasp_id: API5:2023          # VAmPI docs call it API3 excessive-data; Doppel emits it as BFLA/API5
     vuln_class: bfla
     detectable: true
     match: { scanner: bfla, path: "/users/v1/_debug" }
     note: >-
       Privileged debug function reachable by anyone; body leaks cleartext passwords
-      -> APIGuard flags CRITICAL. Verified: GET /users/v1/_debug (no auth) -> 200
+      -> Doppel flags CRITICAL. Verified: GET /users/v1/_debug (no auth) -> 200
       full user+password dump.
 
   - id: vampi-jwt-weak-secret
@@ -95,7 +95,7 @@ vulns:
       SECRET_KEY='random' in config.py. Verified: token forged with key 'random'
       -> GET /me returns admin; identical token with a wrong key -> 401 (signature
       IS checked). alg:none and signature-strip are correctly rejected, so the flaw
-      is the weak secret. APIGuard reports it on the first authed GET (incidental).
+      is the weak secret. Doppel reports it on the first authed GET (incidental).
 
   - id: vampi-misconfig-missing-headers
     target: vampi
@@ -124,7 +124,7 @@ vulns:
     match: { scanner: rate_limit }   # GLOBAL finding (one per scan, on GET "/") — match on scanner alone
     note: >-
       No limiting middleware anywhere in VAmPI. Verified: 25 rapid logins, zero 429.
-      APIGuard bursts a no-param GET and flags the absence.
+      Doppel bursts a no-param GET and flags the absence.
 
   # ─────────────────────── VAmPI — false negatives (no detector) ───────────────────────
   - id: vampi-mass-assignment-admin
@@ -135,7 +135,7 @@ vulns:
     detectable: false
     note: >-
       register_user() binds a client-supplied admin flag not in the schema. Verified:
-      registered {admin:true} -> /me shows admin:true. APIGuard has no mass-assignment
+      registered {admin:true} -> /me shows admin:true. Doppel has no mass-assignment
       detector (recall denominator).
 
   - id: vampi-unauth-password-change
@@ -147,7 +147,7 @@ vulns:
     note: >-
       update_password() uses the path username, not the token subject. Verified:
       name1 set name2's password (204), name2's old password then failed and the new
-      one logged in. This is broken object-authz on a WRITE; APIGuard's BOLA engine
+      one logged in. This is broken object-authz on a WRITE; Doppel's BOLA engine
       adjudicates cross-user READS only (recall denominator).
 
   - id: vampi-user-password-enumeration
@@ -158,7 +158,7 @@ vulns:
     detectable: false
     note: >-
       Verified: existing-user wrong-password -> 'Password is not correct...' vs
-      unknown user -> 'Username does not exist'. APIGuard has no auth-response
+      unknown user -> 'Username does not exist'. Doppel has no auth-response
       differential detector (recall denominator).
 
   - id: vampi-regexdos-email
@@ -169,12 +169,12 @@ vulns:
     detectable: false
     note: >-
       Documented VAmPI vuln; endpoint surface verified reachable (PUT ... /email ->
-      204). Timing not asserted here. APIGuard has no algorithmic-complexity detector
+      204). Timing not asserted here. Doppel has no algorithmic-complexity detector
       (recall denominator).
 
   # ─────────────────────────── crAPI ───────────────────────────
   # crapi.json is a TARGETED BOLA validation (one endpoint, via benchmark/crapi_bola.py),
-  # NOT a full `apiguard scan`. So only the vehicle-location BOLA is demonstrated; crAPI's
+  # NOT a full `doppel scan`. So only the vehicle-location BOLA is demonstrated; crAPI's
   # other known vulns are honest false negatives until D26 wires a full crAPI scan.
   - id: crapi-bola-vehicle-location
     target: crapi
@@ -216,7 +216,7 @@ vulns:
     vuln_class: broken_auth
     detectable: false
     note: >-
-      APIGuard has a jwt detector, but no full crAPI scan has been run (crapi.json is
+      Doppel has a jwt detector, but no full crAPI scan has been run (crapi.json is
       a single-endpoint BOLA driver), so it is not demonstrated on crAPI (D26).
 
   - id: crapi-mass-assignment-video
@@ -225,4 +225,4 @@ vulns:
     owasp_id: API3:2023
     vuln_class: mass_assignment
     detectable: false
-    note: "Documented crAPI challenge; APIGuard has no mass-assignment detector (recall denominator)."
+    note: "Documented crAPI challenge; Doppel has no mass-assignment detector (recall denominator)."

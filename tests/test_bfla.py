@@ -1,14 +1,14 @@
-"""Tests for apiguard.engines.bfla (Day 23)."""
+"""Tests for doppel.engines.bfla (Day 23)."""
 
 import asyncio
 
 import respx
 from httpx import Response
 
-from apiguard.core.http_engine import HttpEngine
-from apiguard.core.identity import Session
-from apiguard.core.models import Endpoint
-from apiguard.engines.bfla import _is_privileged, find_bfla_findings
+from doppel.core.http_engine import HttpEngine
+from doppel.core.identity import Session
+from doppel.core.models import Endpoint
+from doppel.engines.bfla import _is_privileged, find_bfla_findings
 
 BASE = "http://localhost:5000"
 
