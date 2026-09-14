@@ -313,6 +313,12 @@ with VAmPI stopped) — runs with no network and no Ollama. The live path
 Ollama with `qwen3:8b`. Install is `pip install -e ".[dev]"`; the tool, tests, and
 data are all in the repository at tag **v1.0**.
 
+The `apiguard_*` identifiers that remain in the code (the seeded test usernames, the
+BOLA seed prefix, the `@apiguard.test` domain, the `apiguardXSS` marker) are retained
+legacy naming from before the APIGuard→Doppel rename, preserved intentionally so the
+recorded cassette and the committed benchmark results stay valid — they are test-fixture
+data, not the product name.
+
 ---
 
 ## 8. Conclusion and future work

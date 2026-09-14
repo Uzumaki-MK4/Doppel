@@ -2,8 +2,10 @@
 
 A ~5-minute screen recording. Every command is copy-paste ready. Two paths are
 marked: **[LIVE]** (needs VAmPI + Ollama up) and **[OFFLINE]** (works with wifi off,
-target stopped) — record the LIVE path if everything is running, otherwise the
-OFFLINE path tells the same story from committed results.
+target stopped). Record the LIVE path if everything is running; the OFFLINE path tells
+the same story, but its BOLA/BFLA and AI-trace parts come from the **committed results**
+(the dashboard, the saved report, `run_eval`) — the offline `--replay` scan itself only
+reproduces the deterministic scanners. See "What actually needs Ollama" below.
 
 ## Before you hit record (setup checklist)
 
@@ -18,6 +20,15 @@ Get-Process ollama, vampi -ErrorAction SilentlyContinue   # sanity check
 Have two things open: a **terminal** (venv activated) and a **browser**. Maximise the
 terminal font for legibility. Reset VAmPI once so the demo is clean:
 `curl http://localhost:5000/createdb` **[LIVE]**.
+
+**What actually needs Ollama.** Ollama is required for **exactly one scene: Scene 3
+[LIVE]** — the live scan that runs the AI payload generation and the BOLA oracle (and,
+by extension, the `out.html` that scan produces for Scene 4 [LIVE]). Everything else —
+`parse`, the offline `--replay`, `run_eval`, the dashboard, and the committed report —
+runs **without Ollama**. The BOLA detections and the AI oracle trace can still be shown
+offline, but from the **committed results** (Scenes 5–6), not from the offline replay:
+`scan --replay` reproduces only the deterministic scanners, because the recorded
+cassette is a *static* scan and AI/BOLA traffic is not cassettable.
 
 ---
 
@@ -51,14 +62,23 @@ doppel scan --spec http://localhost:5000/openapi.json --payloads ai --repair --b
 doppel scan --replay cassettes/vampi/
 ```
 
-> "It logs in as two users, runs the baseline scanners, then the BOLA/BFLA engine.
-> Eight findings — two CRITICAL. Note the two BOLA findings and the `_debug` BFLA:
-> those all return `200 OK`. A status scanner sees nothing there."
+> **[LIVE]** "It logs in as two users, runs the baseline scanners, then the BOLA/BFLA
+> engine. **Eight findings — two CRITICAL.** Note the two BOLA findings and the
+> `_debug` BFLA: those all return `200 OK`. A status scanner sees nothing there."
+
+> **[OFFLINE]** the replay reproduces only the **five deterministic findings** (JWT,
+> SQLi, two misconfig, rate-limit) — **no BOLA/BFLA and no AI trace**, because the
+> recorded cassette is a *static* scan and the AI/BOLA arms are not cassettable. Say so
+> honestly, and show the BOLA/BFLA detections and the AI trace from the committed
+> results in Scenes 5–6 instead.
 
 ## Scene 4 — Explainability: the AI oracle trace (≈60s)
 
-Open `out.html` **[LIVE]** in the browser (or the committed report — see Scene 6).
-Scroll to a **BOLA** finding and expand the **AI oracle trace**.
+**[LIVE]** open `out.html` (produced by the Scene-3 live scan) in the browser.
+**[OFFLINE]** the replay produces no such report — use the committed one instead: the
+dashboard's **Report** tab (Scene 6), or pre-generate it from the saved `full.json` (see
+Fallback notes). Either way, scroll to a **BOLA** finding and expand the **AI oracle
+trace**.
 
 > "This is what makes it defensible. For each BOLA finding we show the model, the
 > pinned seed, the temperature — so it's reproducible — and the five *measurable*

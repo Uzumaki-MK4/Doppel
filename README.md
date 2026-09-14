@@ -133,6 +133,13 @@ deterministic *within* a session but output can drift across model/server reload
 the committed `benchmark/results/*.json` are the canonical measurements, and the
 dashboard reads those (it never re-scans) so the demo is stable and works offline.
 
+> **Note on `apiguard_*` names.** A few identifiers in the code — the seeded test
+> usernames (`apiguard_a`/`apiguard_b`), the BOLA seed prefix (`apiguard-<owner>-<field>`),
+> the `@apiguard.test` email domain, and the `apiguardXSS` marker — are **retained legacy
+> naming from before the APIGuard→Doppel rename**, kept deliberately so the recorded
+> cassette and the committed benchmark results stay valid. They are test-fixture data, not
+> the product name.
+
 ## A second target: crAPI (optional)
 
 The BOLA oracle + confidence engine generalize to [crAPI](https://github.com/OWASP/crAPI).

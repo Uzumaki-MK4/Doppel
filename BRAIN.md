@@ -338,7 +338,7 @@ Six working days per week. Each day has a Done-when condition. Do not tick a box
 > Claude Code: update this section at the end of every session. Keep it short and factual.
 
 **Current day:** Day 30 — complete. **★ PROJECT COMPLETE (30/30). ★** Tagged v1.0.
-**Last session:** 2026-09-14 — Day 30 report writeup + demo script.
+**Last session:** 2026-09-14 — two post-v1.0 housekeeping sessions: (1) renamed APIGuard→Doppel and restructured the repo under `Doppel/` (commit 1bf45c6); (2) verified the move — reinstalled the editable package, 136 tests pass, `doppel --help` resolves. (Substance unchanged: Day 30 complete, v1.0.)
 **Completed:** D1–D30 — the full 30-day roadmap. The three untouchable deliverables all shipped and MEASURED: the **BOLA engine**, the **AI response oracle**, the **benchmark harness**. Final result (VAmPI): Doppel Full **8/12 (0.67) recall @ 1.00 precision** vs OWASP ZAP **2/12 (0.17)** — the entire gain is 200-OK authorization/data-exposure flaws. Second target (crAPI): a real BOLA at conf 0.8547, 0 FP. 136 tests. D30 shipped `docs/report.md` (adversarially fact-checked) + a published HTML report artifact + `docs/demo_script.md` (the recording walkthrough; the video is the author's to record).
 **In progress:** nothing.
 **Blocked / broken:** nothing.
